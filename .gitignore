@@ -1,10 +1,7 @@
 # CSV unificado (se regenera corriendo eda_completo.py a partir de data/raw/)
 data/olist_dataset_unificado.csv
 
-# Resultados de los modelos (se regeneran corriendo modelos_predictivos.py)
-modelos_output/*.csv
-modelos_output/*.txt
-!modelos_output/.gitkeep
+# Resultados de los modelos
 
 # Imágenes exportadas al correr los scripts (se regeneran en cada corrida)
 figuras_eda/
