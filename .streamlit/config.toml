@@ -1,0 +1,48 @@
+# Tema del panel Olist — réplica de la identidad de olist.com (fondo blanco, azul de
+# marca y navy). Valores extraídos del CSS y los @font-face oficiales de olist.com.
+
+[theme]
+base = "light"
+
+# Botón primario de olist.com (#0C29D0) y enlaces con el azul de marca (#0A4EE4).
+primaryColor = "#0C29D0"
+linkColor = "#0A4EE4"
+
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F9FC"
+textColor = "#001647"          # navy de títulos y textos de olist.com
+borderColor = "#D1D1E3"        # contorno de inputs de olist.com
+
+dataframeHeaderBackgroundColor = "#F4F6FA"
+showWidgetBorder = true
+
+# Tipografía oficial de olist.com (su fonts.css solo define Plus Jakarta Sans),
+# para títulos y cuerpo por igual, como en el sitio.
+font = "Plus Jakarta Sans:https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+headingFont = "Plus Jakarta Sans:https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+headingFontWeights = [700, 700, 700, 700, 700, 600]
+linkUnderline = false
+
+baseRadius = "8px"             # radio de botones y tarjetas de olist.com
+showSidebarBorder = true
+
+[theme.sidebar]
+backgroundColor = "#F7F9FC"
+secondaryBackgroundColor = "#EFF3FA"
+
+# Verde de éxito de olist.com (sus tags "validado").
+greenColor = "#779E3D"
+blueColor = "#0A4EE4"
+grayColor = "#4D5C7E"
+
+# Paleta categórica para gráficos sobre fondo blanco, anclada en el azul de marca.
+chartCategoricalColors = [
+    "#0A4EE4",
+    "#E8590C",
+    "#0CA678",
+    "#F59F00",
+    "#E64980",
+    "#2F9E44",
+    "#7048E8",
+    "#E03131",
+]
