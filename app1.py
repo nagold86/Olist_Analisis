@@ -20,6 +20,8 @@ Comparte el tema de .streamlit/config.toml con la app principal.
 
 from pathlib import Path
 
+import joblib
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -98,6 +100,76 @@ def matriz_heatmap(df_cm, titulo):
 
 
 # ============================================================
+# Carga del modelo final serializado (para el tab de predicción)
+# ============================================================
+MODELO_PATH = EXP_DIR / "modelo_final_compra.joblib"
+SUDESTE = {"SP", "RJ", "MG", "ES"}
+
+
+@st.cache_resource
+def cargar_bundle():
+    """Carga el modelo entrenado + artefactos generados por entrenar_modelo_final.py."""
+    if not MODELO_PATH.exists():
+        return None
+    return joblib.load(MODELO_PATH)
+
+
+@st.cache_data
+def cargar_catalogo():
+    ruta = EXP_DIR / "catalogo_vendedores.csv"
+    if not ruta.exists():
+        return None
+    return pd.read_csv(ruta)
+
+
+def predecir_compra(bundle, entrada: dict):
+    """Reconstruye el vector de features EXACTAMENTE como en el entrenamiento
+    (mismas columnas derivadas, one-hot y reindexado) y devuelve la probabilidad
+    de reseña positiva.
+
+    `entrada` trae los valores crudos del formulario:
+      price, freight_value, product_weight_g, volumen_cm3, distancia_km,
+      items_por_pedido, payment_installments_max, mes_compra_num, dia_semana,
+      product_category_name_english, payment_type_principal, customer_state,
+      seller_state, hist_pct_demora_vendedor, hist_pedidos_vendedor,
+      hist_resena_prom_vendedor, hist_categorias_vendedor
+    """
+    fila = {}
+    # numéricas base
+    fila["distancia_km"] = entrada["distancia_km"]
+    fila["volumen_cm3"] = entrada["volumen_cm3"]
+    fila["product_weight_g"] = entrada["product_weight_g"]
+    fila["price"] = entrada["price"]
+    fila["freight_value"] = entrada["freight_value"]
+    fila["flete_ratio"] = entrada["freight_value"] / entrada["price"] if entrada["price"] else 0.0
+    fila["items_por_pedido"] = entrada["items_por_pedido"]
+    fila["payment_installments_max"] = entrada["payment_installments_max"]
+    # historial del vendedor (viene del catálogo o ajustado a mano)
+    fila["hist_pct_demora_vendedor"] = entrada["hist_pct_demora_vendedor"]
+    fila["hist_pedidos_vendedor"] = entrada["hist_pedidos_vendedor"]
+    fila["hist_resena_prom_vendedor"] = entrada["hist_resena_prom_vendedor"]
+    fila["hist_categorias_vendedor"] = entrada["hist_categorias_vendedor"]
+    # temporales
+    fila["mes_compra_num"] = entrada["mes_compra_num"]
+    fila["dia_semana"] = entrada["dia_semana"]
+    fila["es_temporada_alta"] = int(entrada["mes_compra_num"] in (11, 12, 1))
+    # geográfica derivada
+    fila["mismo_estado"] = int(entrada["customer_state"] == entrada["seller_state"])
+    # categóricas
+    fila["product_category_name_english"] = entrada["product_category_name_english"]
+    fila["region_sudeste"] = "Sudeste" if entrada["customer_state"] in SUDESTE else "Resto del país"
+    fila["payment_type_principal"] = entrada["payment_type_principal"]
+    fila["customer_state"] = entrada["customer_state"]
+
+    X = pd.DataFrame([fila])
+    X = pd.get_dummies(X, columns=bundle["cat_cols"], drop_first=True)
+    X = X.reindex(columns=bundle["columnas_modelo"], fill_value=0)
+
+    proba_pos = float(bundle["modelo"].predict_proba(X)[:, 1][0])
+    return proba_pos
+
+
+# ============================================================
 # Configuración de la página
 # ============================================================
 st.set_page_config(page_title="Olist — Experimentos de modelado", layout="wide")
@@ -120,6 +192,7 @@ tabs = st.tabs([
     "1 · Balanceo y binario",
     "2 · Features al comprar (escenario A)",
     "3 · Importancia de variables",
+    "4 · Predecir una compra",
 ])
 
 # ============================================================
@@ -309,3 +382,137 @@ with tabs[2]:
             "(la feature temporal nueva), lo que valida que agregarla sirvió. La línea más "
             "prometedora para seguir mejorando es sumar más features de comportamiento del vendedor."
         )
+
+# ============================================================
+# TAB 4 — Predecir una compra futura ingresando parámetros a mano
+# ============================================================
+with tabs[3]:
+    st.subheader("Predecir la reseña de una compra futura")
+    st.markdown(
+        "Usá el mejor modelo del escenario A (LightGBM binario, solo datos conocidos al "
+        "momento de la compra) para estimar si una compra terminará en reseña **positiva** "
+        "o **negativa**. Elegí un vendedor real (se usa su historial) y completá los datos "
+        "del pedido."
+    )
+
+    bundle = cargar_bundle()
+    catalogo = cargar_catalogo()
+
+    if bundle is None or catalogo is None:
+        st.warning(
+            "Falta el modelo entrenado. Corré primero `python entrenar_modelo_final.py` "
+            "para generar `modelo_final_compra.joblib` y `catalogo_vendedores.csv`."
+        )
+    else:
+        met = bundle.get("metricas", {})
+        st.caption(
+            f"Modelo: {bundle.get('descripcion', 'LightGBM binario')} · "
+            f"F1 macro {met.get('f1_macro', float('nan')):.3f} · AUC {met.get('auc', float('nan')):.3f}"
+        )
+
+        opciones = bundle["opciones_categoricas"]
+        dias = {0: "Lunes", 1: "Martes", 2: "Miércoles", 3: "Jueves",
+                4: "Viernes", 5: "Sábado", 6: "Domingo"}
+
+        with st.form("form_prediccion"):
+            st.markdown("##### Vendedor (opción a: se usa su historial real)")
+            # etiqueta legible por vendedor
+            catalogo_ord = catalogo.copy()
+            catalogo_ord["etiqueta"] = catalogo_ord.apply(
+                lambda r: f"{r['seller_id'][:8]}… · {int(r['hist_pedidos_vendedor'])} pedidos · "
+                          f"reseña prom {r['hist_resena_prom_vendedor']:.2f} · "
+                          f"{r['hist_pct_demora_vendedor']*100:.0f}% demora · {r['seller_state']}",
+                axis=1,
+            )
+            sel = st.selectbox(
+                "Vendedor", options=catalogo_ord.index,
+                format_func=lambda i: catalogo_ord.loc[i, "etiqueta"],
+            )
+            vendedor = catalogo_ord.loc[sel]
+            ajustar = st.checkbox("Ajustar manualmente el historial del vendedor", value=False)
+
+            col_v1, col_v2 = st.columns(2)
+            if ajustar:
+                with col_v1:
+                    hist_resena = st.slider("Reseña histórica promedio", 1.0, 5.0,
+                                            float(vendedor["hist_resena_prom_vendedor"]), 0.1)
+                    hist_demora = st.slider("% histórico de demora", 0.0, 1.0,
+                                            float(vendedor["hist_pct_demora_vendedor"]), 0.01)
+                with col_v2:
+                    hist_pedidos = st.number_input("Pedidos históricos", min_value=0,
+                                                   value=int(vendedor["hist_pedidos_vendedor"]))
+                    hist_cats = st.number_input("Categorías distintas que vende", min_value=0,
+                                                value=int(vendedor["hist_categorias_vendedor"]))
+            else:
+                hist_resena = float(vendedor["hist_resena_prom_vendedor"])
+                hist_demora = float(vendedor["hist_pct_demora_vendedor"])
+                hist_pedidos = int(vendedor["hist_pedidos_vendedor"])
+                hist_cats = int(vendedor["hist_categorias_vendedor"])
+            seller_state = str(vendedor["seller_state"])
+
+            st.markdown("##### Datos del pedido")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                price = st.number_input("Precio del producto (R$)", min_value=0.0, value=120.0, step=10.0)
+                freight = st.number_input("Costo de flete (R$)", min_value=0.0, value=20.0, step=5.0)
+                items = st.number_input("Ítems en el pedido", min_value=1, value=1)
+            with c2:
+                peso = st.number_input("Peso del producto (g)", min_value=0.0, value=800.0, step=100.0)
+                volumen = st.number_input("Volumen del producto (cm³)", min_value=0.0, value=5000.0, step=500.0)
+                cuotas = st.number_input("Cuotas máximas del pago", min_value=1, value=1)
+            with c3:
+                distancia = st.number_input("Distancia cliente-vendedor (km)", min_value=0.0, value=500.0, step=50.0)
+                categoria = st.selectbox("Categoría del producto", opciones["product_category_name_english"])
+                pago = st.selectbox("Medio de pago", opciones["payment_type_principal"])
+
+            c4, c5, c6 = st.columns(3)
+            with c4:
+                customer_state = st.selectbox("Estado del cliente", opciones["customer_state"])
+            with c5:
+                mes = st.selectbox("Mes de compra", list(range(1, 13)), index=0)
+            with c6:
+                dia = st.selectbox("Día de la semana", list(dias.keys()),
+                                   format_func=lambda d: dias[d])
+
+            enviado = st.form_submit_button("Predecir reseña", type="primary")
+
+        if enviado:
+            entrada = {
+                "price": price, "freight_value": freight, "product_weight_g": peso,
+                "volumen_cm3": volumen, "distancia_km": distancia, "items_por_pedido": items,
+                "payment_installments_max": cuotas, "mes_compra_num": mes, "dia_semana": dia,
+                "product_category_name_english": categoria, "payment_type_principal": pago,
+                "customer_state": customer_state, "seller_state": seller_state,
+                "hist_pct_demora_vendedor": hist_demora, "hist_pedidos_vendedor": hist_pedidos,
+                "hist_resena_prom_vendedor": hist_resena, "hist_categorias_vendedor": hist_cats,
+            }
+            proba_pos = predecir_compra(bundle, entrada)
+            proba_neg = 1 - proba_pos
+            positiva = proba_pos >= 0.5
+
+            col_r1, col_r2 = st.columns([1, 1.2])
+            with col_r1:
+                if positiva:
+                    st.success(f"### Reseña probablemente POSITIVA\nProbabilidad: {proba_pos:.1%}")
+                else:
+                    st.error(f"### Reseña probablemente NEGATIVA\nProbabilidad: {proba_neg:.1%}")
+                st.caption(
+                    f"Cliente en {customer_state} · vendedor en {seller_state} "
+                    f"({'mismo estado' if customer_state == seller_state else 'estados distintos'})"
+                )
+            with col_r2:
+                fig = go.Figure(go.Bar(
+                    x=[proba_neg, proba_pos], y=["Negativa", "Positiva"], orientation="h",
+                    marker_color=[ROJO, VERDE],
+                    text=[f"{proba_neg:.1%}", f"{proba_pos:.1%}"], textposition="auto",
+                ))
+                fig.update_xaxes(range=[0, 1], tickformat=".0%")
+                estilizar(fig, height=200, showlegend=False)
+                chart_card(fig, "Probabilidad estimada por el modelo")
+
+            insight_box(
+                "Recordá que este modelo predice **al momento de la compra**, sin conocer cómo "
+                "saldrá la entrega (AUC ≈ 0.72). Es una estimación de riesgo, no una certeza: "
+                "sirve para señalar qué pedidos vigilar, no para garantizar el resultado. La "
+                "reseña histórica del vendedor es la variable que más influye en la predicción."
+            )
