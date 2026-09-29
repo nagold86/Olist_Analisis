@@ -1,4 +1,0 @@
-subconjunto,n,pct_test,f1_macro,auc,accuracy
-test completo,25584,100.0,0.836,0.897,0.905
-solo CON comentario,10713,41.9,0.875,0.959,0.886
-solo SIN comentario,14871,58.1,0.547,0.637,0.919
