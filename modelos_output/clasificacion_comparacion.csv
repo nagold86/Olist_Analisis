@@ -1,0 +1,2 @@
+modelo,accuracy,precision_macro,recall_macro,f1_macro,auc
+"LightGBM (binario, al comprar)",0.718,0.612,0.666,0.618,0.718

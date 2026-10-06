@@ -2,10 +2,10 @@
 Olist E-Commerce — Panel de Análisis
 Proyecto integrador — Tecnicatura en Ciencia de Datos e Inteligencia Artificial
 
-App de Streamlit que visualiza el EDA y los modelos predictivos desarrollados en los notebooks
-`olist_eda_completo.ipynb` y `modelos_predictivos.ipynb`. No depende de token de Kaggle: lee los
-mismos CSV crudos de `data/raw/` (o el CSV unificado, si ya se generó), y los resultados de los
-modelos desde `modelos_output/` (generados por `modelos_predictivos.ipynb`).
+App de Streamlit que visualiza el EDA y los modelos predictivos desarrollados en el pipeline de
+notebooks (`notebooks/00` → `notebooks/11`). No depende de token de Kaggle: lee los mismos CSV crudos
+de `data/raw/` (o el CSV unificado, si ya se generó), y los resultados de los modelos desde
+`modelos_output/` (generados por `notebooks/11_modelado.ipynb`).
 """
 
 import base64
@@ -13,6 +13,7 @@ import io
 import warnings
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -294,26 +295,68 @@ def cargar_datos():
 @st.cache_data
 def cargar_modelos_output():
     archivos = {
-        "metricas": "metricas_clasificacion.csv",
-        "importancia": "feature_importance.csv",
-        "matriz_confusion": "matriz_confusion.csv",
-        "predicciones": "predicciones_test.csv",
-        "mejor_modelo": "mejor_modelo.txt",
-        "elbow": "elbow_silhouette.csv",
+        "comparacion": "clasificacion_comparacion.csv",
+        "importancia": "clasificacion_importancia.csv",
+        "matriz_confusion": "clasificacion_matriz_confusion.csv",
+        "predicciones": "clasificacion_predicciones_test.csv",
+        "elbow": "clustering_elbow_silhouette.csv",
         "cluster_resumen": "clustering_resumen.csv",
         "cluster_asignaciones": "clustering_asignaciones.csv",
     }
+    con_indice = ("comparacion", "importancia", "matriz_confusion", "cluster_resumen")
     resultado = {}
     for clave, nombre in archivos.items():
         ruta = MODELOS_DIR / nombre
         if not ruta.exists():
             resultado[clave] = None
-        elif nombre.endswith(".txt"):
-            resultado[clave] = ruta.read_text().strip()
         else:
-            resultado[clave] = pd.read_csv(ruta, index_col=0 if clave in
-                                            ("metricas", "importancia", "matriz_confusion", "cluster_resumen") else None)
+            resultado[clave] = pd.read_csv(ruta, index_col=0 if clave in con_indice else None)
     return resultado
+
+
+@st.cache_resource(show_spinner="Cargando el modelo de reseña...")
+def cargar_modelo_prediccion():
+    """Carga el modelo entrenado + artefactos (modelo_final.joblib) y el catálogo de vendedores,
+    generados por notebooks/11_modelado.ipynb. Devuelve (bundle, catalogo) o (None, None)."""
+    ruta_modelo = MODELOS_DIR / "modelo_final.joblib"
+    ruta_catalogo = MODELOS_DIR / "catalogo_vendedores.csv"
+    if not ruta_modelo.exists() or not ruta_catalogo.exists():
+        return None, None
+    return joblib.load(ruta_modelo), pd.read_csv(ruta_catalogo)
+
+
+SUDESTE = {"SP", "RJ", "MG", "ES"}
+
+
+def predecir_resena(bundle, entrada: dict) -> float:
+    """Reconstruye el vector de features igual que en el entrenamiento (mismas derivadas, one-hot
+    y reindexado) y devuelve la probabilidad de reseña positiva."""
+    fila = {
+        "distancia_km": entrada["distancia_km"],
+        "volumen_cm3": entrada["volumen_cm3"],
+        "product_weight_g": entrada["product_weight_g"],
+        "price": entrada["price"],
+        "freight_value": entrada["freight_value"],
+        "flete_ratio": entrada["freight_value"] / entrada["price"] if entrada["price"] else 0.0,
+        "items_por_pedido": entrada["items_por_pedido"],
+        "payment_installments_max": entrada["payment_installments_max"],
+        "hist_pct_demora_vendedor": entrada["hist_pct_demora_vendedor"],
+        "hist_pedidos_vendedor": entrada["hist_pedidos_vendedor"],
+        "hist_resena_prom_vendedor": entrada["hist_resena_prom_vendedor"],
+        "hist_categorias_vendedor": entrada["hist_categorias_vendedor"],
+        "mes_compra_num": entrada["mes_compra_num"],
+        "dia_semana": entrada["dia_semana"],
+        "es_temporada_alta": int(entrada["mes_compra_num"] in (11, 12, 1)),
+        "mismo_estado": int(entrada["customer_state"] == entrada["seller_state"]),
+        "product_category_name_english": entrada["product_category_name_english"],
+        "region_sudeste": "Sudeste" if entrada["customer_state"] in SUDESTE else "Resto del país",
+        "payment_type_principal": entrada["payment_type_principal"],
+        "customer_state": entrada["customer_state"],
+    }
+    X = pd.DataFrame([fila])
+    X = pd.get_dummies(X, columns=bundle["cat_cols"], drop_first=True)
+    X = X.reindex(columns=bundle["columnas_modelo"], fill_value=0)
+    return float(bundle["modelo"].predict_proba(X)[:, 1][0])
 
 
 if not RAW_DIR.exists() and not CSV_UNIFICADO.exists():
@@ -399,8 +442,8 @@ for col_foto, (foto_b64, texto_foto) in zip(st.columns(4), FOTOS):
 
 tabs = st.tabs([
     "Resumen", "Exploración de datos", "Mapa de clientes",
-    "Modelo: reseña del pedido", "Modelo: segmentación de vendedores",
-    "Conclusiones",
+    "Modelo: reseña del pedido", "Predecir una compra",
+    "Modelo: segmentación de vendedores", "Conclusiones",
 ])
 
 # ============================================================
@@ -804,143 +847,214 @@ with tabs[2]:
 # TAB 4 — Modelo de clasificación
 # ============================================================
 with tabs[3]:
-    st.subheader("¿La reseña va a ser negativa, neutral o positiva?")
+    st.subheader("¿La reseña va a ser positiva o negativa?")
     st.markdown(
-        "La idea de este modelo es anticiparse: en base a datos que ya se conocen apenas se hace "
-        "la compra (qué se compró, a qué precio, desde dónde), intentar predecir si esa persona "
-        "va a terminar dejando una reseña buena, mala o neutra — antes de que el pedido siquiera "
-        "llegue. A propósito, el modelo no usa si el envío llegó tarde ni ningún otro dato "
-        "posterior a la entrega: si lo hiciera, estaría \"haciendo trampa\", prediciendo el "
-        "resultado con información que en la práctica no está disponible a tiempo para actuar."
+        "La idea de este modelo es anticiparse: con datos que ya se conocen apenas se hace la "
+        "compra (qué se compró, a qué precio, desde dónde, y el historial del vendedor), estimar si "
+        "esa persona va a terminar dejando una reseña **positiva** o **negativa** — antes de que el "
+        "pedido siquiera llegue. A propósito, el modelo no usa si el envío llegó tarde ni ningún "
+        "otro dato posterior a la entrega: si lo hiciera, estaría \"haciendo trampa\", prediciendo "
+        "el resultado con información que en la práctica no está disponible a tiempo para actuar."
     )
     st.caption(
-        "Se probaron tres algoritmos de clasificación."
+        "Técnica: LightGBM (clasificación binaria), entrenado en `notebooks/11_modelado.ipynb`."
     )
 
-    if modelos["metricas"] is None:
+    if modelos["comparacion"] is None:
         st.warning(
-            "No encuentro `modelos_output/metricas_clasificacion.csv`. Corré primero "
-            "`modelos_predictivos.ipynb` para generar los resultados del modelo."
+            "No encuentro `modelos_output/clasificacion_comparacion.csv`. Corré primero "
+            "`notebooks/11_modelado.ipynb` para generar los resultados del modelo."
         )
     else:
-        metricas = modelos["metricas"]
-        mejor = modelos["mejor_modelo"] or metricas["f1_macro"].idxmax()
-        ETIQUETAS_RESEÑA = ["Negativa", "Neutral", "Positiva"]
+        comp = modelos["comparacion"]
+        ETIQUETAS_RESEÑA = ["Negativa", "Positiva"]
+        f1 = float(comp["f1_macro"].iloc[0])
+        auc = float(comp["auc"].iloc[0])
+        acc = float(comp["accuracy"].iloc[0])
+
+        c1, c2, c3 = st.columns(3)
+        kpi_card(c1, f"{auc:.2f}", "AUC (0,5 = azar; 1 = perfecto)")
+        kpi_card(c2, f"{f1:.2f}", "F1 macro (0 a 1)")
+        kpi_card(c3, f"{acc:.0%}", "Aciertos totales")
+        insight_box(
+            "El modelo predice **solo con datos conocidos al momento de la compra**, así que no hay "
+            "trampa. Un AUC de ~0,72 significa que separa bastante mejor que el azar: sirve para "
+            "**señalar pedidos de riesgo** antes de que lleguen, no para dar una certeza. El techo "
+            "es intrínseco: gran parte de lo que define la reseña (cómo salió la entrega) todavía no "
+            "ocurrió cuando el cliente compra."
+        )
 
         col1, col2 = st.columns([1, 1])
         with col1:
-            fig = px.bar(
-                metricas["f1_macro"].sort_values(), orientation="h",
-                labels={"value": "Puntaje del modelo (0 a 1, más alto es mejor)", "modelo": ""},
-                color_discrete_sequence=[CHART_BLUE],
-                text=metricas["f1_macro"].sort_values().round(2).values,
-            )
-            fig.update_traces(texttemplate="%{text:.2f}", textposition="outside")
-            estilizar(fig, showlegend=False)
-            fig.update_xaxes(range=[0, 1])
-            chart_card(fig, "Qué tan bien predice cada modelo (F1 macro)")
-            st.dataframe(metricas.round(2), width="stretch")
-            st.success(f"Mejor modelo: **{mejor}**")
-            insight_box(
-                "\"F1 macro\" es un puntaje de 0 a 1 que combina cuántas veces el modelo acierta y "
-                "cuántas veces no se le escapa un caso, promediado por igual entre las tres "
-                "categorías (negativa, neutral, positiva). Se prefiere sobre el simple \"% de "
-                "aciertos\" porque, al haber tantas más reseñas positivas que del resto, un modelo "
-                "podría acertar mucho solo por adivinar siempre \"positiva\" — y eso no sería útil."
-            )
-
-        with col2:
             if modelos["matriz_confusion"] is not None:
-                cm = modelos["matriz_confusion"]
-                cm_display = cm.copy()
-                cm_display.index = ETIQUETAS_RESEÑA[: len(cm_display)]
-                cm_display.columns = ETIQUETAS_RESEÑA[: len(cm_display.columns)]
+                cm = modelos["matriz_confusion"].copy()
+                cm.index = ETIQUETAS_RESEÑA[: len(cm)]
+                cm.columns = ETIQUETAS_RESEÑA[: len(cm.columns)]
                 fig = px.imshow(
-                    cm_display, text_auto=True, color_continuous_scale="Blues",
+                    cm, text_auto=True, color_continuous_scale="Blues",
                     labels=dict(x="El modelo predijo", y="La reseña real fue"),
                 )
                 estilizar(fig)
-                chart_card(fig, f"Aciertos y errores del mejor modelo ({mejor})")
+                fig.update_coloraxes(showscale=False)
+                chart_card(fig, "Aciertos y errores del modelo")
                 st.caption(
                     "Cada fila es lo que pasó de verdad; cada columna, lo que predijo el modelo. "
-                    "La diagonal (de arriba-izquierda a abajo-derecha) son los aciertos, cuanto más "
-                    "alto ese número comparado con el resto de su fila, mejor."
-                )
-
-                # Precision/recall/F1 por clase, calculados a partir de la matriz de confusión
-                cm_vals = cm_display.values.astype(float)
-                diagonal = np.diag(cm_vals)
-                soporte = cm_vals.sum(axis=1)  # reales por clase
-                predichos = cm_vals.sum(axis=0)  # predichos por clase
-                with np.errstate(divide="ignore", invalid="ignore"):
-                    precision_clase = np.where(predichos > 0, diagonal / predichos, 0)
-                    recall_clase = np.where(soporte > 0, diagonal / soporte, 0)
-                    f1_clase = np.where(
-                        (precision_clase + recall_clase) > 0,
-                        2 * precision_clase * recall_clase / (precision_clase + recall_clase),
-                        0,
-                    )
-                metricas_clase = pd.DataFrame({
-                    "precision": precision_clase, "recall": recall_clase, "f1": f1_clase,
-                }, index=cm_display.index)
-                st.dataframe(metricas_clase.round(2), width="stretch")
-                st.caption(
-                    "precision: de las veces que el modelo dijo esta categoría, ¿cuántas acertó? · "
-                    "recall: de todos los casos reales de esta categoría, ¿a cuántos los detectó? · "
-                    "f1: combina las dos anteriores en un solo número."
+                    "La diagonal son los aciertos."
                 )
                 insight_box(
-                    "Es esperable que la fila/columna de **Neutral** tenga los números más bajos: "
-                    "es la clase más chica y la más parecida, en sus datos, tanto a una reseña "
-                    "positiva como a una negativa. Al modelo le cuesta distinguirla de las otras dos."
+                    "El modelo detecta una buena parte de las reseñas **negativas** (que son las "
+                    "pocas e importantes), a costa de marcar algunos pedidos buenos como de riesgo: "
+                    "un intercambio razonable cuando el objetivo es no dejar pasar un cliente "
+                    "insatisfecho."
                 )
-
-        if modelos["importancia"] is not None:
-            importancia = modelos["importancia"].iloc[:, 0].sort_values()
-            fig = px.bar(
-                importancia, orientation="h",
-                labels={"value": "Peso en la decisión del modelo", "index": ""},
-                color_discrete_sequence=[CHART_BLUE],
-                text=importancia.round(2).values,
-            )
-            fig.update_traces(texttemplate="%{text:.2f}", textposition="outside")
-            estilizar(fig, showlegend=False, height=460)
-            chart_card(fig, f"¿Qué variables mira más el modelo? ({mejor}, top 15)", height=460)
-            insight_box(
-                "Si el historial de demoras del vendedor aparece entre las variables más importantes, "
-                "confirma que el comportamiento pasado del vendedor sigue siendo señal útil de "
-                "satisfacción, incluso sin usar la demora del pedido actual."
-            )
-            oportunidad_box(
-                "Las variables que más pesan en el modelo son la mejor guía de dónde actuar primero: "
-                "si el historial del vendedor domina, conviene un programa de seguimiento a "
-                "vendedores con antecedentes de demora antes de que se traduzca en otra mala reseña."
-            )
+        with col2:
+            if modelos["importancia"] is not None:
+                importancia = modelos["importancia"].iloc[:, 0].sort_values()
+                fig = px.bar(
+                    importancia, orientation="h",
+                    labels={"value": "Peso en la decisión del modelo", "index": ""},
+                    color_discrete_sequence=[CHART_BLUE],
+                )
+                estilizar(fig, showlegend=False, height=460)
+                chart_card(fig, "¿Qué variables mira más el modelo? (top 15)", height=460)
+                insight_box(
+                    "La variable más influyente es la **reseña histórica promedio del vendedor**: el "
+                    "mejor predictor de si un cliente va a quedar conforme es cómo quedaron los "
+                    "clientes anteriores de ese mismo vendedor. La distancia y el flete también pesan."
+                )
+                oportunidad_box(
+                    "Si el historial del vendedor domina la predicción, conviene un programa de "
+                    "seguimiento a los vendedores con peores antecedentes antes de que se traduzca "
+                    "en otra mala reseña."
+                )
 
         if modelos["predicciones"] is not None:
             pred = modelos["predicciones"].copy()
-            mapa_clase = {0: "Negativa", 1: "Neutral", 2: "Positiva"}
-            pred["Reseña real"] = pred["y_real"].map(mapa_clase)
+            pred["Reseña real"] = pred["y_real"].map({0: "Negativa", 1: "Positiva"})
             fig = px.histogram(
                 pred, x="proba_positiva", color="Reseña real", barmode="overlay", nbins=30,
                 category_orders={"Reseña real": ETIQUETAS_RESEÑA},
-                color_discrete_sequence=[PALETA_CATEGORICA[7], PALETA_CATEGORICA[3], CHART_BLUE],
+                color_discrete_sequence=[PALETA_CATEGORICA[7], CHART_BLUE],
                 labels={"proba_positiva": "Probabilidad que asignó el modelo a \"reseña positiva\""},
             )
             estilizar(fig)
             chart_card(fig, "¿Qué tan seguro estaba el modelo, según cómo terminó cada pedido?")
             insight_box(
-                "Idealmente, la curva celeste (pedidos que sí terminaron en reseña positiva) debería "
-                "concentrarse a la derecha (probabilidades altas), y las curvas roja/ámbar "
-                "(negativa/neutral) a la izquierda. Que se solapen tanto, sobre todo la neutral, "
-                "muestra en un gráfico lo mismo que ya vimos en la matriz de confusión: distinguir "
-                "la clase neutral es lo que más le cuesta al modelo."
+                "La curva celeste (pedidos que sí terminaron en reseña positiva) se corre a la "
+                "derecha (probabilidades altas) y la roja (negativa) a la izquierda. Que se separen "
+                "—aunque con solape— es exactamente lo que mide el AUC."
             )
 
 # ============================================================
-# TAB 5 — Clustering de vendedores
+# TAB 5 — Predecir una compra
 # ============================================================
 with tabs[4]:
+    st.subheader("Predecir la reseña de una compra")
+    st.markdown(
+        "Usá el modelo entrenado para estimar si una compra terminará en reseña **positiva** o "
+        "**negativa**. Elegí un vendedor real (se usa su historial) y completá los datos del pedido."
+    )
+
+    bundle, catalogo = cargar_modelo_prediccion()
+    if bundle is None:
+        st.warning(
+            "No encuentro `modelos_output/modelo_final.joblib` ni `catalogo_vendedores.csv`. "
+            "Corré primero `notebooks/11_modelado.ipynb`."
+        )
+    else:
+        met = bundle.get("metricas", {})
+        st.caption(
+            f"Modelo: {bundle.get('descripcion', 'LightGBM binario')} · "
+            f"F1 macro {met.get('f1_macro', float('nan')):.2f} · AUC {met.get('auc', float('nan')):.2f}"
+        )
+        opciones = bundle["opciones_categoricas"]
+        dias = {0: "Lunes", 1: "Martes", 2: "Miércoles", 3: "Jueves",
+                4: "Viernes", 5: "Sábado", 6: "Domingo"}
+
+        with st.form("form_prediccion"):
+            st.markdown("##### Vendedor (se usa su historial real)")
+            cat = catalogo.copy()
+            cat["etiqueta"] = cat.apply(
+                lambda r: f"{r['seller_id'][:8]}… · {int(r['hist_pedidos_vendedor'])} pedidos · "
+                          f"reseña prom {r['hist_resena_prom_vendedor']:.2f} · "
+                          f"{r['hist_pct_demora_vendedor'] * 100:.0f}% demora · {r['seller_state']}",
+                axis=1,
+            )
+            sel = st.selectbox("Vendedor", options=cat.index,
+                               format_func=lambda i: cat.loc[i, "etiqueta"])
+            vendedor = cat.loc[sel]
+            seller_state = str(vendedor["seller_state"])
+
+            st.markdown("##### Datos del pedido")
+            d1, d2, d3 = st.columns(3)
+            with d1:
+                price = st.number_input("Precio del producto (R$)", min_value=0.0, value=120.0, step=10.0)
+                freight = st.number_input("Costo de flete (R$)", min_value=0.0, value=20.0, step=5.0)
+                items = st.number_input("Ítems en el pedido", min_value=1, value=1)
+            with d2:
+                peso = st.number_input("Peso del producto (g)", min_value=0.0, value=800.0, step=100.0)
+                volumen = st.number_input("Volumen del producto (cm³)", min_value=0.0, value=5000.0, step=500.0)
+                cuotas = st.number_input("Cuotas máximas del pago", min_value=1, value=1)
+            with d3:
+                distancia = st.number_input("Distancia cliente-vendedor (km)", min_value=0.0, value=500.0, step=50.0)
+                categoria = st.selectbox("Categoría del producto", opciones["product_category_name_english"])
+                pago = st.selectbox("Medio de pago", opciones["payment_type_principal"])
+
+            e1, e2, e3 = st.columns(3)
+            with e1:
+                customer_state = st.selectbox("Estado del cliente", opciones["customer_state"])
+            with e2:
+                mes = st.selectbox("Mes de compra", list(range(1, 13)), index=0)
+            with e3:
+                dia = st.selectbox("Día de la semana", list(dias.keys()), format_func=lambda d: dias[d])
+
+            enviado = st.form_submit_button("Predecir reseña", type="primary")
+
+        if enviado:
+            entrada = {
+                "price": price, "freight_value": freight, "product_weight_g": peso,
+                "volumen_cm3": volumen, "distancia_km": distancia, "items_por_pedido": items,
+                "payment_installments_max": cuotas, "mes_compra_num": mes, "dia_semana": dia,
+                "product_category_name_english": categoria, "payment_type_principal": pago,
+                "customer_state": customer_state, "seller_state": seller_state,
+                "hist_pct_demora_vendedor": float(vendedor["hist_pct_demora_vendedor"]),
+                "hist_pedidos_vendedor": int(vendedor["hist_pedidos_vendedor"]),
+                "hist_resena_prom_vendedor": float(vendedor["hist_resena_prom_vendedor"]),
+                "hist_categorias_vendedor": int(vendedor["hist_categorias_vendedor"]),
+            }
+            proba_pos = predecir_resena(bundle, entrada)
+            proba_neg = 1 - proba_pos
+            positiva = proba_pos >= 0.5
+
+            r1, r2 = st.columns([1, 1.2])
+            with r1:
+                if positiva:
+                    st.success(f"### Reseña probablemente POSITIVA\nProbabilidad: {proba_pos:.0%}")
+                else:
+                    st.error(f"### Reseña probablemente NEGATIVA\nProbabilidad: {proba_neg:.0%}")
+                st.caption(
+                    f"Cliente en {customer_state} · vendedor en {seller_state} "
+                    f"({'mismo estado' if customer_state == seller_state else 'estados distintos'})"
+                )
+            with r2:
+                fig = go.Figure(go.Bar(
+                    x=[proba_neg, proba_pos], y=["Negativa", "Positiva"], orientation="h",
+                    marker_color=[PALETA_CATEGORICA[7], CHART_BLUE],
+                    text=[f"{proba_neg:.0%}", f"{proba_pos:.0%}"], textposition="auto",
+                ))
+                fig.update_xaxes(range=[0, 1], tickformat=".0%")
+                estilizar(fig, height=200, showlegend=False)
+                chart_card(fig, "Probabilidad estimada por el modelo")
+            insight_box(
+                "Esta es una estimación de **riesgo al momento de la compra**, no una certeza "
+                "(AUC ≈ 0,72): sirve para señalar qué pedidos vigilar. La reseña histórica del "
+                "vendedor es la variable que más influye en la predicción."
+            )
+
+# ============================================================
+# TAB 6 — Clustering de vendedores
+# ============================================================
+with tabs[5]:
     st.subheader("¿Todos los vendedores se comportan igual?")
     st.markdown(
         "Este segundo modelo agrupa a los vendedores según cómo "
@@ -950,13 +1064,13 @@ with tabs[4]:
         "problemáticos del resto, que en promedio funciona bien."
     )
     st.caption(
-        "Técnica: K-Means (agrupamiento no supervisado), entrenado en `modelos_predictivos.ipynb`."
+        "Técnica: K-Means (agrupamiento no supervisado), entrenado en `notebooks/11_modelado.ipynb`."
     )
 
     if modelos["cluster_resumen"] is None:
         st.warning(
             "No encuentro `modelos_output/clustering_resumen.csv`. Corré primero "
-            "`modelos_predictivos.ipynb` para generar los resultados del clustering."
+            "`notebooks/11_modelado.ipynb` para generar los resultados del clustering."
         )
     else:
         st.markdown(
@@ -1029,9 +1143,9 @@ with tabs[4]:
             )
 
 # ============================================================
-# TAB 6 — Conclusiones y próximos pasos
+# TAB 7 — Conclusiones y próximos pasos
 # ============================================================
-with tabs[5]:
+with tabs[6]:
 
     st.markdown("#### Hallazgos principales")
     col1, col2 = st.columns(2)
