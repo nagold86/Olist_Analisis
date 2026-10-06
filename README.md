@@ -109,6 +109,6 @@ Los CSV de `data/raw/` fueron bajados una sola vez desde
 entrar a esa página logueado (no requiere token de API), descargar, descomprimir y reemplazar los
 archivos de `data/raw/`.
 
-## Autora
+## Autor
 
-Natalia — Tecnicatura en Ciencia de Datos e Inteligencia Artificial.
+Grupo 3 — Tecnicatura en Ciencia de Datos e Inteligencia Artificial.
