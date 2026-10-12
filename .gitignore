@@ -1,3 +1,4 @@
+
 # CSV unificado (se regenera corriendo eda_completo.py a partir de data/raw/)
 data/olist_dataset_unificado.csv
 
@@ -12,6 +13,16 @@ figuras_modelos/
 venv/
 env/
 
+# Carpetas de asistentes de IA / herramientas locales
+.claude/
+.agents/
+
+# Notas internas, guiones y presentaciones
+PENDIENTES_informe_presentacion.md
+Guion_Presentacion_Olist.md
+Presentacion_Olist.pptx
+Presentacion_OList.pptx
+
 # Python
 __pycache__/
 *.pyc
@@ -24,3 +35,4 @@ Thumbs.db
 .vscode/
 .idea/
 ~$*.docx
+~$*.pptx
