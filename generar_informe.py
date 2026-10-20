@@ -556,6 +556,36 @@ def sec_analisis_exploratorio(doc):
                "Figura 10. Nubes de palabras de las reseñas negativas (izquierda) y positivas (derecha).",
                width=Inches(6.0))
 
+    # 3.6 Sentimiento con modelo multilingue
+    doc.add_heading("3.6 Sentimiento de las reseñas con un modelo multilingüe", level=2)
+    p_normal(doc,
+        "Para superar el carácter puramente descriptivo de las nubes de palabras, se aplicó un "
+        "clasificador de sentimiento preentrenado (DistilBERT multilingüe, ~0,1B de parámetros) "
+        "capacitado para español y portugués, que asigna cada comentario a una de cinco clases: "
+        "muy negativo, negativo, neutral, positivo y muy positivo. El modelo se ejecutó de forma "
+        "local sobre CPU (sin GPU ni servicios pagos) sobre las 47.471 reseñas con texto, en el "
+        "marco de la rama testNLP del proyecto."
+    )
+    p_normal(doc,
+        "La distribución resultante es 43,5 % positiva, 23,5 % neutral y 33,0 % negativa. Al "
+        "contrastar el sentimiento del texto contra las estrellas efectivamente asignadas, el "
+        "modelo coincide en el 77,1 % de las reseñas con un polo claro, lo que valida su uso como "
+        "capa descriptiva. El verdadero valor aparece en las discrepancias: 4.089 reseñas de 4-5 "
+        "estrellas contienen texto negativo (clientes que puntúan alto pero se quejan, casi siempre "
+        "de la entrega) y 894 reseñas de 1-2 estrellas tienen texto positivo. La calificación "
+        "numérica actúa como un piso; el texto revela una fricción que el número oculta."
+    )
+    p_normal(doc,
+        "Cabe aclarar que esta variable de sentimiento se usa exclusivamente como capa descriptiva "
+        "para el informe y el dashboard, y NO se incorpora al modelo predictivo de la sección 5: la "
+        "reseña es un dato posterior a la compra y utilizarla como predictor constituiría una fuga "
+        "de información."
+    )
+    add_figure(doc, FIGS_EDA / "nb09_03.png",
+               "Figura 10b. Matriz de calor del sentimiento del texto (DistilBERT) frente a las "
+               "estrellas reales; cada fila normaliza al 100 %.",
+               width=Inches(5.6))
+
 
 def sec_hipotesis(doc):
     doc.add_heading("4. Contraste de hipótesis", level=1)
@@ -876,10 +906,13 @@ def sec_trabajo_futuro(doc):
         "mejorar la capacidad predictiva del modelo."
     )
     p_normal(doc,
-        "En tercer lugar, un análisis de texto más sofisticado (topic modeling, análisis de "
-        "sentimiento con modelos preentrenados en portugués) permitiría cuantificar con mayor "
-        "precisión la proporción de reseñas negativas atribuibles a problemas logísticos frente "
-        "a otros motivos."
+        "En tercer lugar, el análisis de texto ya dio un primer salto con la incorporación de un "
+        "clasificador de sentimiento multilingüe preentrenado (sección 3.6), hoy usado como capa "
+        "descriptiva. Como trabajo futuro queda el topic modeling (por ejemplo BERTopic) para "
+        "atribuir cada reseña negativa a un motivo concreto —logística, producto o atención— y "
+        "cuantificar con precisión esa proporción. El sentimiento no podrá incorporarse como "
+        "predictor del modelo de la sección 5 sin romper la garantía anti-fuga, pero sí habilita "
+        "modelos de abandono o de recompra sobre la experiencia post-compra."
     )
     p_normal(doc,
         "Finalmente, la segmentación de vendedores podría complementarse con un modelo de "
@@ -916,9 +949,13 @@ def sec_limitaciones(doc):
         "de optimismo en las métricas reportadas."
     )
     p_normal(doc,
-        "Finalmente, el análisis textual se limitó a conteos de palabras y nubes de palabras; "
-        "no se aplicaron técnicas de modelado de tópicos ni clasificadores de sentimiento, lo "
-        "que limita el alcance de la hipótesis H2 a una evidencia cualitativa."
+        "Finalmente, el análisis textual incorporó un clasificador de sentimiento multilingüe "
+        "preentrenado (sección 3.6), lo que fortalece la hipótesis H2 más allá de la evidencia "
+        "cualitativa de las nubes de palabras. No obstante, este modelo presenta limitaciones "
+        "propias: fue entrenado con datos sintéticos, su coincidencia con las estrellas reales "
+        "ronda el 77 % y no se validó específicamente sobre el portugués de Olist, por lo que se "
+        "usa solo como capa descriptiva y no como predictor. El modelado de tópicos queda pendiente "
+        "como trabajo futuro."
     )
 
 

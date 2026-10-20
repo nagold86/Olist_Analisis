@@ -115,13 +115,14 @@ Cada presentador hace la transición al siguiente con una frase puente ("Ahora [
 
 ---
 
-## SLIDE 10 — NLP: las palabras de la queja
+## SLIDE 10 — NLP: de las palabras al sentimiento
 **En el slide:**
-- Nubes de palabras lado a lado: negativas (rojo) vs. positivas (azul) (nb09_02.png)
-- 3 palabras destacadas de las negativas: "não · recebi · entregue · prazo"
+- Izquierda: nubes de palabras negativas (rojo) vs. positivas (azul) (nb09_02.png)
+- Derecha: matriz de calor sentimiento × estrellas (nb09_03.png)
+- Cifras destacadas: "77% de coherencia texto↔estrellas · 4.089 reseñas 4-5★ con texto negativo"
 
-**Speech (Presentador B, ~40 seg, transición al C):**
-> Procesamos los comentarios en portugués con NLTK y los resultados son elocuentes. En las reseñas negativas dominan "não", "recebi", "entregue", "prazo", "chegou": todo vocabulario de entrega. En las positivas: "excelente", "qualidade", "recomendo", "perfeito". El cliente no se queja del producto, se queja de la logística. Esto es evidencia cualitativa que complementa los números. Ahora [Presentador C] va a contar cómo llevamos todo esto a tests estadísticos.
+**Speech (Presentador B, ~55 seg, transición al C):**
+> Procesamos los comentarios en portugués en dos niveles. Con NLTK y nubes de palabras vimos el vocabulario de la queja: "não", "recebi", "entregue", "prazo" — todo es logística, no el producto. Después dimos un salto e incorporamos un clasificador de sentimiento multilingüe (DistilBERT, español y portugués) que corrió 100% local, sin GPU. Nos dice que el 33% del texto es negativo, y lo más interesante: coincide con las estrellas el 77% de las veces, pero hay 4.089 reseñas de 4-5 estrellas cuyo texto es negativo. Clientes que puntúan alto pero se quejan de la entrega. La estrella es un piso; el texto revela la fricción. Ahora [Presentador C] va a contar cómo llevamos todo esto a tests estadísticos.
 
 ---
 
@@ -154,10 +155,10 @@ Cada presentador hace la transición al siguiente con una frase puente ("Ahora [
 - 3 puntos concisos (frases cortas):
   - "Tests a nivel de ítem → ítems del mismo pedido no son independientes"
   - "Datos 2016-2018 → snapshot histórico"
-  - "H2 es cualitativa (no hay clasificador de sentimiento)"
+  - "H2 ahora también cuantitativa (sentimiento), pero el modelo es descriptivo: no puede predecir sin fuga"
 
 **Speech (Presentador C, ~30 seg, transición al D):**
-> Antes de pasar al modelado, vale aclarar las limitaciones. Los tests se corrieron a nivel de ítem, así que los ítems de un mismo pedido no son estrictamente independientes. Los datos son de hace varios años, así que el marketplace puede haber cambiado. Y la hipótesis H2 es cualitativa: no usamos un clasificador de sentimiento. Ahora [Presentador D] les va a contar los modelos.
+> Antes de pasar al modelado, vale aclarar las limitaciones. Los tests se corrieron a nivel de ítem, así que los ítems de un mismo pedido no son estrictamente independientes. Los datos son de hace varios años, así que el marketplace puede haber cambiado. Y el clasificador de sentimiento que vimos lo usamos solo como capa descriptiva: no puede entrar al modelo predictivo porque la reseña ocurre después de la compra y sería fuga de información. Ahora [Presentador D] les va a contar los modelos.
 
 ---
 
@@ -257,6 +258,6 @@ Cada presentador hace la transición al siguiente con una frase puente ("Ahora [
 ## Notas de producción
 
 - **Tiempo total de speech:** ~18 minutos (quedan 2 min para preguntas rápidas o un pequeño buffer)
-- **Figuras que se usan:** nb06_02, nb06_04, nb06_06, nb09_02, nb11_01, nb11_03, nb11_05, nb11_06, nb11_07, nb11_08 (10 figuras)
+- **Figuras que se usan:** nb06_02, nb06_04, nb06_06, nb09_02, nb09_03, nb11_01, nb11_03, nb11_05, nb11_06, nb11_07, nb11_08 (11 figuras)
 - **Diseño sugerido:** fondo blanco, tipografía Arial/Calibri, acentos en azul oscuro (#1F3A5F), sin animaciones excesivas, una idea por slide
 - **Recomendación de ensayo:** cada presentador practica su bloque 2-3 veces cronometrando; la transición entre presentadores es el momento donde más se pierde tiempo
