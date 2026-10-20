@@ -322,7 +322,14 @@ def cargar_modelo_prediccion():
     ruta_catalogo = MODELOS_DIR / "catalogo_vendedores.csv"
     if not ruta_modelo.exists() or not ruta_catalogo.exists():
         return None, None
-    return joblib.load(ruta_modelo), pd.read_csv(ruta_catalogo)
+    try:
+        return joblib.load(ruta_modelo), pd.read_csv(ruta_catalogo)
+    except Exception:
+        # `joblib` puede fallar si falta la dependencia (lightgbm) o cambió la versión
+        # de scikit-learn con la que se serializó. Se degrada con elegancia: el resto
+        # del dashboard (incluida la capa de sentimiento) sigue funcionando aunque la
+        # pestaña de pronóstico no pueda cargar el modelo.
+        return None, None
 
 
 SUDESTE = {"SP", "RJ", "MG", "ES"}
@@ -709,78 +716,147 @@ with tabs[1]:
         "marketplace de catálogo amplio."
     )
 
-    st.markdown("#### ¿Qué dicen los clientes en sus propias palabras?")
+    st.markdown("#### ¿Qué sienten los clientes en sus propias palabras?")
     st.markdown(
-        "Además de la calificación numérica, muchas reseñas incluyen un comentario de texto libre. "
-        "Estas nubes de palabras muestran "
-        "los términos más repetidos: cuanto más grande la palabra, más veces aparece."
+        "Además de la calificación numérica, medimos el **sentimiento** de cada comentario con un "
+        "modelo DistilBERT multilingüe (español/portugués, 5 clases), precalculado en "
+        "`notebooks/09_nlp_sobre_las_resenas.ipynb` y guardado en `data/pipeline/03_df_sentimiento.csv`. "
+        "Esta es una **capa descriptiva**: no alimenta el modelo de pronóstico (la reseña es un dato "
+        "post-compra y usarla sería fuga de información)."
     )
-    con_comentario = df["review_comment_message"].notna() & (df["review_comment_message"].str.strip() != "")
-    try:
-        import re
-        import unicodedata
-        from collections import Counter
 
-        from wordcloud import WordCloud
+    RUTA_SENTIMIENTO = Path("data/pipeline/03_df_sentimiento.csv")
+    ORDEN_SENT = ["Very Negative", "Negative", "Neutral", "Positive", "Very Positive"]
+    TRAD_SENT = {
+        "Very Negative": "Muy negativo", "Negative": "Negativo", "Neutral": "Neutral",
+        "Positive": "Positivo", "Very Positive": "Muy positivo",
+    }
+    ETIQUETAS_SENT = [TRAD_SENT[c] for c in ORDEN_SENT]
+    COLORES_SENT = ["#E03131", "#E8590C", "#F59F00", "#0CA678", "#0A4EE4"]
 
-        def _limpiar_texto(texto):
-            texto = str(texto).lower()
-            texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("utf-8")
-            texto = re.sub(r"[^a-z\s]", " ", texto)
-            return re.sub(r"\s+", " ", texto).strip()
-
-        STOPWORDS_PT = set((
-            "de a o que e do da em um para com nao uma os no se na por mais as dos como mas "
-            "ao ele das a sua ou quando muito nos ja eu tambem so pelo pelas pela ate isso "
-            "ela entre depois sem mesmo aos seus quem nas me esse eles voce essa num nem "
-            "suas meu as minha numa pelos elas qual sera nos tenho lhe deles essas esses "
-            "pelas este fosse dela tu te voces vos lhes meus minhas teu tua teus tuas "
-            "nosso nossa nossos nossas dele produto pedido"
-        ).split())
-
-        def _armar_texto(serie):
-            palabras = " ".join(serie.apply(_limpiar_texto)).split()
-            return " ".join(p for p in palabras if p not in STOPWORDS_PT and len(p) > 2)
-
-        texto_neg = _armar_texto(df.loc[con_comentario & (df["review_score"] <= 2), "review_comment_message"])
-        texto_pos = _armar_texto(df.loc[con_comentario & (df["review_score"] >= 4), "review_comment_message"])
-
-        col7, col8 = st.columns(2)
-        with col7:
-            if texto_neg.strip():
-                nube_neg = WordCloud(
-                    width=700, height=420, background_color=BG_PAGE, colormap="Reds",
-                    max_words=60, collocations=False,
-                ).generate(texto_neg)
-                import io as _io
-                buf = _io.BytesIO()
-                nube_neg.to_image().save(buf, format="PNG")
-                imagen_card(
-                    base64.b64encode(buf.getvalue()).decode("utf-8"),
-                    "Reseñas negativas (1-2 estrellas)",
-                )
-        with col8:
-            if texto_pos.strip():
-                nube_pos = WordCloud(
-                    width=700, height=420, background_color=BG_PAGE, colormap="Blues",
-                    max_words=60, collocations=False,
-                ).generate(texto_pos)
-                buf2 = _io.BytesIO()
-                nube_pos.to_image().save(buf2, format="PNG")
-                imagen_card(
-                    base64.b64encode(buf2.getvalue()).decode("utf-8"),
-                    "Reseñas positivas (4-5 estrellas)",
-                )
-        insight_box(
-            "En las reseñas negativas predominan palabras de queja sobre entrega y plazo "
-            "(\"prazo\", \"atraso\", \"chegou\"), mientras que en las positivas predominan elogios y "
-            "menciones al cumplimiento del plazo. La misma conclusión que ya vimos con los "
-            "números, ahora confirmada desde la expresión de los propios clientes."
-        )
-    except Exception:
+    if not RUTA_SENTIMIENTO.exists():
         st.info(
-            "No se pudo generar la nube de palabras en este entorno (falta la librería `wordcloud` "
-            "o no hay reseñas con comentario de texto en este dataset)."
+            "No existe el artefacto de sentimiento (`data/pipeline/03_df_sentimiento.csv`). "
+            "Ejecutá `notebooks/09_nlp_sobre_las_resenas.ipynb` (con `requirements-nlp.txt` instalado) "
+            "para generarlo y ver esta sección."
+        )
+    else:
+        sent = pd.read_csv(RUTA_SENTIMIENTO)
+        sent["sentimiento_es"] = sent["sentimiento"].map(TRAD_SENT)
+        es_neg = sent["sentimiento"].isin(["Very Negative", "Negative"])
+        es_pos = sent["sentimiento"].isin(["Positive", "Very Positive"])
+
+        # --- Distribución global de sentimiento ---
+        conteo = (
+            sent["sentimiento_es"].value_counts().reindex(ETIQUETAS_SENT, fill_value=0).reset_index()
+        )
+        conteo.columns = ["sentimiento", "resenas"]
+        conteo["pct"] = (conteo["resenas"] / len(sent) * 100).round(1)
+        fig_dist = px.bar(
+            conteo, x="sentimiento", y="resenas", color="sentimiento",
+            color_discrete_map=dict(zip(ETIQUETAS_SENT, COLORES_SENT)), text="pct",
+        )
+        fig_dist.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+        fig_dist.update_layout(showlegend=False)
+        fig_dist.update_yaxes(title_text="Reseñas con comentario")
+        estilizar(fig_dist, height=360)
+        chart_card(fig_dist, f"Distribución del sentimiento ({len(sent):,} reseñas con texto)", height=360)
+
+        # --- KPIs de la señal oculta (texto vs estrellas) ---
+        k1, k2, k3 = st.columns(3)
+        kpi_card(k1, f"{int(((sent['review_score'] >= 4) & es_neg).sum()):,}",
+                 "4-5★ con texto NEGATIVO (insatisfechos ocultos)")
+        kpi_card(k2, f"{int(((sent['review_score'] <= 2) & es_pos).sum()):,}",
+                 "1-2★ con texto POSITIVO (queja cordial)")
+        nclaro = int((es_neg | es_pos).sum())
+        coher = float((((es_pos) & (sent["review_score"] >= 4)) | ((es_neg) & (sent["review_score"] <= 2))).sum() / nclaro)
+        kpi_card(k3, f"{coher * 100:.1f}%", "Coherencia texto↔estrellas (polo claro)")
+
+        # --- Heatmap sentimiento x estrellas (% por fila) ---
+        piv = pd.crosstab(sent["sentimiento_es"], sent["review_score"]).reindex(ETIQUETAS_SENT)
+        pct_piv = (piv.div(piv.sum(axis=1), axis=0) * 100).round(1)
+        fig_heat = px.imshow(
+            pct_piv, text_auto=".0f", aspect="auto", color_continuous_scale="Reds",
+            labels=dict(x="Estrellas reales", y="Sentimiento del texto", color="%"),
+        )
+        estilizar(fig_heat, height=360)
+        chart_card(fig_heat, "¿El texto coincide con las estrellas? (% dentro de cada sentimiento)", height=360)
+
+        insight_box(
+            f"El {coher * 100:.0f}% de las reseñas con un polo claro coincide con su calificación, lo que "
+            "valida el modelo. El dato accionable son las **discrepancias**: miles de clientes que ponen "
+            "4-5★ y aun así se quejan (mayormente por la **entrega**), y otros que ponen 1-2★ con texto "
+            "cordial. La estrella es un piso; el texto revela la fricción real."
+        )
+
+        # --- Sentimiento negativo por categoría ---
+        mapa_cat = df.drop_duplicates("order_id").set_index("order_id")["product_category_name_english"]
+        sent["categoria"] = sent["order_id"].map(mapa_cat)
+        por_cat = (
+            sent.groupby("categoria")
+            .agg(resenas=("sentimiento", "size"),
+                 pct_neg=("sentimiento", lambda x: x.isin(["Very Negative", "Negative"]).mean() * 100))
+            .query("resenas >= 300")
+            .sort_values("pct_neg", ascending=False)
+            .head(8)
+            .reset_index()
+        )
+        if not por_cat.empty:
+            por_cat["pct_neg"] = por_cat["pct_neg"].round(1)
+            fig_cat = px.bar(
+                por_cat, x="pct_neg", y="categoria", orientation="h",
+                color="pct_neg", color_continuous_scale="OrRd",
+            )
+            fig_cat.update_layout(showlegend=False)
+            fig_cat.update_xaxes(title_text="% de reseñas con texto negativo")
+            fig_cat.update_traces(texttemplate="%{x:.0f}%", textposition="outside")
+            estilizar(fig_cat, height=380)
+            chart_card(fig_cat, "Categorías con el texto más enojado (mín. 300 reseñas)", height=380)
+
+        # --- Explorador de reseñas por sentimiento ---
+        st.markdown("##### Explorador de reseñas por sentimiento")
+        col_f1, col_f2 = st.columns([2, 1])
+        with col_f1:
+            filtro_sent = st.selectbox(
+                "Filtrar por sentimiento",
+                ["Todos", "Solo discrepancias (texto ≠ estrellas)"] + ETIQUETAS_SENT,
+            )
+        with col_f2:
+            texto_busqueda = st.text_input("Buscar palabra", placeholder="prazo, entrega, produto...")
+
+        vista = sent.copy()
+        if filtro_sent == "Solo discrepancias (texto ≠ estrellas)":
+            vista = vista.loc[
+                ((es_pos) & (vista["review_score"] <= 2)) | ((es_neg) & (vista["review_score"] >= 4))
+            ]
+        elif filtro_sent != "Todos":
+            vista = vista.loc[vista["sentimiento_es"] == filtro_sent]
+        if texto_busqueda.strip():
+            vista = vista[
+                vista["review_comment_message"].str.lower().str.contains(texto_busqueda.lower(), na=False)
+            ]
+
+        if vista.empty:
+            st.info("Ninguna reseña coincide con el filtro seleccionado.")
+        else:
+            st.caption(
+                f"{len(vista):,} reseñas coinciden · confianza media {vista['confianza'].mean():.2f}"
+            )
+            mostrar = vista.sort_values("confianza", ascending=False).head(80)
+            for _, r in mostrar.iterrows():
+                resumen = str(r["review_comment_message"])[:60]
+                with st.expander(
+                    f"{int(r['review_score'])}★ · {r['sentimiento_es']} "
+                    f"(conf. {r['confianza']:.2f}) · {resumen}"
+                ):
+                    st.write(f"“{r['review_comment_message']}”")
+            if len(vista) > len(mostrar):
+                st.caption(f"Mostrando las {len(mostrar)} de mayor confianza de {len(vista):,}.")
+
+        oportunidad_box(
+            "Detectar los 'insatisfechos ocultos' (4-5★ con texto negativo) permite recuperar "
+            "clientes que el score numérico marca como perdidos: una acción de postventa o mejora "
+            "logística sobre ellos ataca la causa real de la queja (casi siempre la entrega)."
         )
 
 # ============================================================
@@ -958,8 +1034,9 @@ with tabs[4]:
     bundle, catalogo = cargar_modelo_prediccion()
     if bundle is None:
         st.warning(
-            "No encuentro `modelos_output/modelo_final.joblib` ni `catalogo_vendedores.csv`. "
-            "Corré primero `notebooks/11_modelado.ipynb`."
+            "No se pudo cargar `modelos_output/modelo_final.joblib`: faltan los artefactos "
+            "o las dependencias del modelo (`lightgbm`/`scikit-learn`). Corré "
+            "`notebooks/11_modelado.ipynb` en el entorno base y recargá la página."
         )
     else:
         met = bundle.get("metricas", {})

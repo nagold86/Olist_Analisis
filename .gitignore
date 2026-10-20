@@ -1,6 +1,10 @@
 # CSV unificado (se regenera corriendo eda_completo.py a partir de data/raw/)
 data/olist_dataset_unificado.csv
 
+# Artefacto de sentimiento (branch testNLP): se regenera con notebooks/09 +
+# requirements-nlp.txt (env aislado con torch/transformers). Pesa ~6 MB.
+data/pipeline/03_df_sentimiento.csv
+
 # Resultados de los modelos
 
 # Imágenes exportadas al correr los scripts (se regeneran en cada corrida)

@@ -1,0 +1,30 @@
+# ============================================================
+# requirements-nlp.txt — Capa NLP avanzada AISLADA (branch testNLP)
+# ============================================================
+# Objetivo: scoring de sentimiento 5 clases sobre review_comment_message
+# (notebook 09, artefacto data/pipeline/03_df_sentimiento.csv).
+#
+# REGLAS (según plan de "El Canasta"):
+# 1. NO mezclar este archivo con requirements.txt: torch+transformers pesan
+#    ~2 GB y el entorno base que carga modelo_final.joblib (nb11 + app.py)
+#    es frágil a cambios de versión de scikit-learn/lightgbm.
+# 2. Este stack se usa SOLO para la capa descriptiva del notebook 09.
+#    Prohibido alimentar el clasificador de nb11 con el sentimiento
+#    (garantía anti-fuga de información: el texto es post-compra).
+# 3. PyTorch se instala CPU-only desde el índice oficial:
+#       pip install torch --index-url https://download.pytorch.org/whl/cpu
+#    antes de instalar el resto.
+# ============================================================
+
+torch==2.14.1+cpu          # CPU-only; ver nota 3 (instalar desde el índice PyTorch)
+transformers==5.3.0        # pipeline de text-classification
+sentencepiece==0.2.1       # tokenización distilbert-multilingual
+huggingface-hub==1.7.2     # descarga del modelo tabularisai/multilingual-sentiment-analysis
+
+# Modelo: tabularisai/multilingual-sentiment-analysis
+#   - Base: distilbert-base-multilingual-cased (~0.1B params, 541 MB F32)
+#   - 5 clases: Very Negative / Negative / Neutral / Positive / Very Positive
+#   - Soporta portugués (lengua nativa) y español
+#   - Licencia: MIT — inferencia 100% local, sin API de pago
+#   - Nota honesta para la defensa: entrenado con datos sintéticos de LLM;
+#     se contrasta contra review_score real en el notebook 09.
