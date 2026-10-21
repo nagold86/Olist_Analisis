@@ -1,0 +1,19 @@
+modelo,real,predicho,resenas,pct
+Modelo de Hugging Face (preentrenado),negativo,negativo,1414,68.0
+Modelo de Hugging Face (preentrenado),negativo,neutral,529,25.5
+Modelo de Hugging Face (preentrenado),negativo,positivo,135,6.5
+Modelo de Hugging Face (preentrenado),neutral,negativo,406,57.7
+Modelo de Hugging Face (preentrenado),neutral,neutral,144,20.5
+Modelo de Hugging Face (preentrenado),neutral,positivo,154,21.9
+Modelo de Hugging Face (preentrenado),positivo,negativo,735,13.9
+Modelo de Hugging Face (preentrenado),positivo,neutral,1142,21.6
+Modelo de Hugging Face (preentrenado),positivo,positivo,3398,64.4
+"Modelo propio (TF-IDF, entrenado con nuestras reseñas)",negativo,negativo,1684,81.0
+"Modelo propio (TF-IDF, entrenado con nuestras reseñas)",negativo,neutral,337,16.2
+"Modelo propio (TF-IDF, entrenado con nuestras reseñas)",negativo,positivo,57,2.7
+"Modelo propio (TF-IDF, entrenado con nuestras reseñas)",neutral,negativo,254,36.1
+"Modelo propio (TF-IDF, entrenado con nuestras reseñas)",neutral,neutral,303,43.0
+"Modelo propio (TF-IDF, entrenado con nuestras reseñas)",neutral,positivo,147,20.9
+"Modelo propio (TF-IDF, entrenado con nuestras reseñas)",positivo,negativo,222,4.2
+"Modelo propio (TF-IDF, entrenado con nuestras reseñas)",positivo,neutral,618,11.7
+"Modelo propio (TF-IDF, entrenado con nuestras reseñas)",positivo,positivo,4435,84.1

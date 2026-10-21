@@ -1,0 +1,19 @@
+caso,review_score,polaridad_real,pred_huggingface,pred_tfidf,review_comment_message
+"Acierta el modelo propio, falla el de Hugging Face",2.0,negativo,neutral,negativo,Veio com defeitos 
+"Acierta el modelo propio, falla el de Hugging Face",1.0,negativo,neutral,negativo,"Comprei um ultrabook e foi enviado um celular, mandei de volta, mais o ultrabook até o momento não recebi, como fica isso."
+"Acierta el modelo propio, falla el de Hugging Face",5.0,positivo,negativo,positivo,"Produto entregues antes do tempo previsto. Estou testando a peça, a meu ver parece estar em perfeito estado de funcionamento."
+"Acierta el modelo propio, falla el de Hugging Face",5.0,positivo,neutral,positivo,"Mto obrigada,valeu pessoal..."
+"Acierta el modelo propio, falla el de Hugging Face",5.0,positivo,negativo,positivo,"Ainda não o testei, mas chegou antes do prazo previsto."
+"Acierta el modelo propio, falla el de Hugging Face",5.0,positivo,neutral,positivo,"produto entregue sem problemas, bem antes do prazo de entrega."
+"Acierta el modelo propio, falla el de Hugging Face",1.0,negativo,positivo,negativo,"Eu comprei um ""Limpa Vidro Com Imã Magnético Super Rodo""e me entregaram uma balança.Era um presente e me envergonhei qdo a pessoa abriu.Tive que ligar para o baratheon e estou aguardando um contato. "
+"Acierta el modelo propio, falla el de Hugging Face",4.0,positivo,neutral,positivo,Recebi tudo dentro do prazo e conforme o combinado 
+"Acierta el de Hugging Face, falla el modelo propio",5.0,positivo,positivo,neutral,Bom atendimento
+"Acierta el de Hugging Face, falla el modelo propio",5.0,positivo,positivo,neutral,Boa
+"Acierta el de Hugging Face, falla el modelo propio",4.0,positivo,positivo,neutral,Recebi o produto. É de ótima qualidade. Só o cadeado que acompanha o produto que veio com defeito. 
+"Acierta el de Hugging Face, falla el modelo propio",4.0,positivo,positivo,neutral,"aparelho util, bom, pratico, poderia ser mais robusto e mais silencioso, na faixa de preço sem concorencia"
+"Acierta el de Hugging Face, falla el modelo propio",5.0,positivo,positivo,neutral," A capa e a pelicula atenderam as espectativas. Ambos os produtos se encaixam muito bem, é claro que a película não cobre totalmente a frente devido ao ""corte"" 2D da tela, entretanto a capinha resolve"
+"Acierta el de Hugging Face, falla el modelo propio",1.0,negativo,negativo,neutral,"Ola comprei 2 pares de fronha e veio apenas um par
+Como podem resolçver isso? obrigada"
+"Acierta el de Hugging Face, falla el modelo propio",4.0,positivo,positivo,neutral,"poderia demorar menos pra chegar né kkkkkk... mas foi bom, chegou o produto certo!!!"
+"Acierta el de Hugging Face, falla el modelo propio",3.0,neutral,neutral,negativo,"Aguardando o produto chegar ainda, tem 1 mês que foi feito o pedido. 
+"

@@ -1,4 +1,4 @@
-# CSV unificado (se regenera corriendo eda_completo.py a partir de data/raw/)
+# CSV unificado (se regenera con el notebook 02 a partir de data/raw/)
 data/olist_dataset_unificado.csv
 
 # Resultados de los modelos
@@ -12,8 +12,9 @@ figuras_modelos/
 venv/
 env/
 
-# Python
+# Python / Jupyter
 __pycache__/
+.ipynb_checkpoints/
 *.pyc
 *.pyo
 *.egg-info/
@@ -24,3 +25,10 @@ Thumbs.db
 .vscode/
 .idea/
 ~$*.docx
+~$*.pptx
+
+# Carpetas de asistentes de IA y notas internas de traspaso
+.claude/
+.agents/
+.qoder/
+PENDIENTES_informe_presentacion.md
