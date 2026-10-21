@@ -79,12 +79,24 @@ data/olist_dataset_unificado.csv  (nb 02)
     → data/pipeline/01_df_limpio.csv  (nb 03)
         → data/pipeline/02_df_features.csv  (nb 04)
             → EDA (nb 05–10) y modelado (nb 11)
+            → nb 09 genera además:
+                data/pipeline/03_df_sentimiento.csv                 (sentimiento de cada reseña, lo usa el dashboard)
+                data/pipeline/03_discrepancias_revision_manual.csv  (muestra para validar a mano)
 ```
 
 El **notebook 09** usa un transformer de sentimiento (`tabularisai/multilingual-sentiment-analysis`)
 cuyo resultado ya está guardado en `data/pipeline/03_df_sentimiento.csv`: si el archivo existe, el
 notebook lo reutiliza y **no hace falta instalar `requirements-nlp.txt`**. Solo para recalcularlo
 (~15 min en CPU) hay que instalar ese archivo y poner `FORZAR_SCORING = True` en el notebook.
+
+El mismo notebook entrena un clasificador propio (**TF-IDF + Regresión Logística**) con las estrellas
+de las reseñas y lo compara con el transformer: el modelo propio gana (accuracy 0,80 vs. 0,62). Las dos
+son capas **descriptivas** del texto: no alimentan el modelo del notebook 11, porque la reseña es un dato
+posterior a la compra.
+
+`03_discrepancias_revision_manual.csv` trae 60 reseñas donde el texto contradice a las estrellas, con
+una columna `es_discrepancia_real` para completar a mano (1 = real, 0 = error del modelo). Al volver a
+correr esa celda del notebook se estima cuántas discrepancias son reales.
 
 El **notebook 11** entrena los dos modelos y guarda sus resultados en `modelos_output/`, incluyendo el
 modelo serializado (`modelo_final.joblib`) y el catálogo de vendedores (`catalogo_vendedores.csv`), de
@@ -102,7 +114,9 @@ clientes, Modelo de reseña, Predecir una compra, Segmentación de vendedores y 
 como una presentación para alguien que no sabe de ciencia de datos: cada hallazgo técnico viene con una
 explicación en criollo y, cuando corresponde, una oportunidad de negocio accionable. La pestaña
 **Predecir una compra** usa el modelo entrenado para estimar, de forma interactiva, si una compra
-terminará en reseña positiva o negativa.
+terminará en reseña positiva o negativa. En **Exploración de datos**, la sección de reseñas muestra
+las nubes de palabras y, si existe `03_df_sentimiento.csv`, el sentimiento de los comentarios con un
+explorador para filtrar reseñas por sentimiento o por palabra.
 
 El dashboard usa el logo de Olist y una paleta derivada de la identidad de olist.com (azul `#0A4EE4`).
 El logo y las fotos ilustrativas están embebidos en base64 dentro de `app.py`, así que la app funciona
