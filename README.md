@@ -31,7 +31,7 @@ Olist_Analisis/
 │   ├── 10_contraste_de_hipotesis.ipynb         # Tests estadísticos + conclusiones del EDA
 │   └── 11_modelado.ipynb                       # Clasificación de reseña (LightGBM) + segmentación (K-Means)
 ├── app.py                                  # Dashboard en Streamlit (lee modelos_output/)
-├── modelos_output/                         # Resultados del modelado (los genera el notebook 11)
+├── modelos_output/                         # Resultados del modelado (notebook 11) y comparación de modelos de texto (nlp_*, notebook 09)
 ├── data/
 │   ├── raw/                                    # Las 9 tablas originales de Kaggle (colocarlas acá)
 │   ├── pipeline/                               # Artefactos intermedios del pipeline
@@ -90,7 +90,8 @@ notebook lo reutiliza y **no hace falta instalar `requirements-nlp.txt`**. Solo 
 (~15 min en CPU) hay que instalar ese archivo y poner `FORZAR_SCORING = True` en el notebook.
 
 El mismo notebook entrena un clasificador propio (**TF-IDF + Regresión Logística**) con las estrellas
-de las reseñas y lo compara con el transformer: el modelo propio gana (accuracy 0,80 vs. 0,62). Las dos
+de las reseñas y lo compara con el transformer: el modelo propio gana (accuracy 0,80 vs. 0,62). La comparación se guarda en
+`modelos_output/nlp_*.csv` para que el dashboard la muestre sin reentrenar. Las dos
 son capas **descriptivas** del texto: no alimentan el modelo del notebook 11, porque la reseña es un dato
 posterior a la compra.
 
@@ -109,14 +110,16 @@ streamlit run app.py
 ```
 
 Ejecutá antes el pipeline al menos una vez (para tener `data/olist_dataset_unificado.csv` y
-`modelos_output/`). El dashboard tiene siete pestañas — Resumen, Exploración de datos, Mapa de
-clientes, Modelo de reseña, Predecir una compra, Segmentación de vendedores y Conclusiones — pensadas
+`modelos_output/`). El dashboard tiene ocho pestañas — Resumen, Exploración de datos, Mapa de
+clientes, Comentarios de los clientes, Modelo de reseña, Predecir una compra, Segmentación de
+vendedores y Conclusiones — pensadas
 como una presentación para alguien que no sabe de ciencia de datos: cada hallazgo técnico viene con una
 explicación en criollo y, cuando corresponde, una oportunidad de negocio accionable. La pestaña
 **Predecir una compra** usa el modelo entrenado para estimar, de forma interactiva, si una compra
-terminará en reseña positiva o negativa. En **Exploración de datos**, la sección de reseñas muestra
-las nubes de palabras y, si existe `03_df_sentimiento.csv`, el sentimiento de los comentarios con un
-explorador para filtrar reseñas por sentimiento o por palabra.
+terminará en reseña positiva o negativa. La pestaña **Comentarios de los clientes** reúne el
+análisis de texto: nubes de palabras, el tono de los comentarios (si existe `03_df_sentimiento.csv`),
+la comparación entre el modelo de Hugging Face y el modelo propio, y un explorador para leer los
+comentarios filtrando por tono o por palabra.
 
 El dashboard usa el logo de Olist y una paleta derivada de la identidad de olist.com (azul `#0A4EE4`).
 El logo y las fotos ilustrativas están embebidos en base64 dentro de `app.py`, así que la app funciona

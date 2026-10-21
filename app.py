@@ -110,7 +110,7 @@ def _logo_pil():
 
 
 st.set_page_config(
-    page_title="Olist — Panel de análisis",
+    page_title="Dashboard de análisis",
     page_icon=_logo_pil(),
     layout="wide",
 )
@@ -144,12 +144,12 @@ def kpi_card(col, valor, etiqueta):
 
 def insight_box(texto):
     """Lectura de un gráfico: párrafo con etiqueta editorial, sin recuadro ni ícono."""
-    st.markdown(f"**Lectura:** {texto}")
+    st.markdown(f"**Qué vemos:** {texto}")
 
 
 def oportunidad_box(texto):
     """Sugerencia de negocio: mismo tratamiento, con otra etiqueta."""
-    st.markdown(f"**En la práctica:** {texto}")
+    st.markdown(f"**Qué podría hacer Olist:** {texto}")
 
 
 def chart_card(fig, titulo, height=None):
@@ -383,29 +383,61 @@ modelos = cargar_modelos_output()
 # Es el único CSS del sitio, pedido a propósito y acotado a esta barra por la key del
 # contenedor (.st-key-olistHeader); el resto de la app se maqueta con el tema nativo.
 st.html("""<style>
-.st-key-olistHeader {
+.st-key-olistLogo, .st-key-olistTitulo {
     background-color: #0A4EE4;
     border-radius: 8px;
-    padding: 1rem 1.25rem;
+    height: 88px;
+    justify-content: center;
 }
-.st-key-olistHeader h1 {
+.st-key-olistLogo {
+    width: 88px !important;
+    min-width: 88px;
+    flex: 0 0 88px;
+    padding: 0.75rem;
+    align-items: center;
+}
+.st-key-olistLogo img {
+    width: 100%;
+    height: auto;
+}
+.st-key-olistTitulo {
+    height: 88px !important;
+    min-height: 88px !important;
+    padding: 0 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: visible;
+}
+.st-key-olistTitulo h1 {
     color: #ffffff !important;
-    margin: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.2;
+}
+.st-key-olistTitulo [data-testid="stElementContainer"],
+.st-key-olistTitulo [data-testid="stHeading"],
+.st-key-olistTitulo [data-testid="stHeadingWithActionElements"] {
+    margin: 0 !important;
+    padding: 0 !important;
 }
 </style>""")
 
-with st.container(key="olistHeader", horizontal=True, vertical_alignment="center"):
-    st.image(LOGO_OLIST_BLANCO)
-    st.title("Olist — Panel de análisis")
+with st.container(horizontal=True, vertical_alignment="center"):
+    with st.container(key="olistLogo", width="content"):
+        st.image(LOGO_OLIST_BLANCO)
+    with st.container(key="olistTitulo"):
+        st.title("Dashboard de análisis")
 st.caption(
     "Materia: Proyecto integrador — Prof.: Hugo Damian Planiscig"
 )
 st.markdown(
-    "**¿Qué es Olist?** Es un *marketplace* brasileño: una plataforma donde miles de "
-    "pequeños y medianos comercios venden sus productos, y Olist se encarga de conectarlos "
-    "con los compradores y coordinar el envío. Este panel resume qué pasa desde que alguien "
-    "compra hasta que recibe (o no) su pedido a tiempo, y qué tan conforme queda — usando el "
-    "dataset público de Olist (2016-2018) y los modelos que entrenamos sobre él. "
+    "**¿Qué es Olist?** Es una plataforma brasileña de venta online, parecida a un shopping "
+    "virtual: miles de comercios chicos y medianos publican ahí sus productos, y Olist los "
+    "conecta con los compradores y organiza los envíos. Este panel cuenta qué pasa desde que "
+    "alguien hace una compra hasta que la recibe, si le llegó a tiempo y qué tan conforme "
+    "quedó. Usamos los datos públicos de Olist de 2016 a 2018 (unos 100.000 pedidos) y los "
+    "modelos que entrenamos con ellos."
 )
 
 def _foto_sobre_blanco(b64_data):
@@ -448,7 +480,7 @@ for col_foto, (foto_b64, texto_foto) in zip(st.columns(4), FOTOS):
         st.caption(texto_foto)
 
 tabs = st.tabs([
-    "Resumen", "Exploración de datos", "Mapa de clientes",
+    "Resumen", "Exploración de datos", "Mapa de clientes", "Comentarios de los clientes",
     "Modelo: reseña del pedido", "Predecir una compra",
     "Modelo: segmentación de vendedores", "Conclusiones",
 ])
@@ -465,10 +497,12 @@ with tabs[0]:
     kpi_card(c4, f"R$ {df['price'].mean():.2f}", "Precio promedio por producto")
 
     st.markdown(
-        "Este panel cuenta la historia en tres actos: primero un vistazo general del negocio "
-        "(esta pestaña), después un recorrido más detallado por los patrones del dataset y el mapa "
-        "de dónde compra la gente, y por último los dos modelos predictivos: uno que anticipa si "
-        "una reseña va a ser buena o mala, y otro que agrupa a los vendedores según cómo entregan. "
+        "El panel se recorre en tres partes. Esta pestaña da un vistazo general del negocio. "
+        "Las tres siguientes miran los datos más de cerca: qué se vende y cuánto tardan los "
+        "envíos, desde dónde compran los clientes y qué dicen en sus comentarios (donde también "
+        "comparamos dos modelos que leen texto). Las últimas muestran dos modelos más: uno que "
+        "intenta anticipar, al momento de la compra, si el cliente va a quedar conforme, y otro "
+        "que agrupa a los vendedores según cómo entregan."
     )
 
     col_izq, col_der = st.columns(2)
@@ -486,11 +520,13 @@ with tabs[0]:
         )
         fig.update_traces(texttemplate="R$ %{text:,.2f}", textposition="outside")
         estilizar(fig, showlegend=False)
-        chart_card(fig, "Top 10 categorías por facturación")
+        chart_card(fig, "Las 10 categorías que más facturan")
+        pct_top10_facturacion = facturacion_categoria.sum() / df["price"].sum() * 100
+        n_categorias = df["product_category_name_english"].nunique()
         insight_box(
-            "Un puñado de categorías concentra la mayor parte de la facturación. El negocio de "
-            "Olist no está repartido parejo entre las categorías, sino con algunas pocas "
-            "haciendo la mayor parte del peso."
+            f"Estas 10 categorías, de un total de {n_categorias}, juntan el "
+            f"{pct_top10_facturacion:.0f}% de todo lo que se vendió en plata. O sea, el negocio "
+            "depende bastante de un grupo de categorías, aunque ninguna por sí sola es dominante."
         )
     with col_der:
         ventas_mensuales = df.groupby("mes_compra")["order_id"].nunique().reset_index()
@@ -502,26 +538,26 @@ with tabs[0]:
         estilizar(fig)
         chart_card(fig, "Pedidos únicos por mes")
         insight_box(
-            "La tendencia mensual muestra el crecimiento del marketplace en el período y permite "
-            "detectar picos estacionales (por ejemplo, campañas de fin de año), algo a tener en "
-            "cuenta antes de comparar métricas entre meses sin ajustar por volumen."
+            "La cantidad de pedidos crece mucho entre 2017 y 2018 y tiene picos en fechas de "
+            "compras fuertes, como fin de año. Por eso, para comparar dos meses conviene mirar "
+            "porcentajes y no cantidades. La caída del final no es real: los datos se cortan ahí y "
+            "los últimos meses casi no tienen datos."
         )
     oportunidad_box(
-        "Con la facturación tan concentrada en pocas categorías, negociar mejores condiciones "
-        "(comisiones, visibilidad, logística dedicada) con los vendedores de esas categorías top "
-        "rinde más que aplicar el mismo esfuerzo pareja a las +70 categorías del catálogo."
+        "Como unas pocas categorías mueven gran parte de la plata, conviene empezar por ahí: "
+        "ofrecerles mejores condiciones a sus vendedores (comisiones, visibilidad, envíos) rinde "
+        "más que repartir el mismo esfuerzo entre las más de 70 categorías."
     )
 
 # ============================================================
 # TAB 2 — Exploración de datos
 # ============================================================
 with tabs[1]:
-    st.subheader("Patrones del dataset")
+    st.subheader("Qué muestran los datos")
     st.markdown(
-        "Antes de entrenar cualquier modelo conviene mirar los datos de cerca: qué tan completos "
-        "están, cómo se reparten las calificaciones, y si hay alguna pista temprana de qué hace "
-        "que un pedido llegue tarde o que a un cliente le vaya bien o mal. Eso es lo que se ve en "
-        "esta pestaña."
+        "Antes de armar cualquier modelo hay que conocer bien los datos: si les falta información, "
+        "cómo califican los clientes, y qué pistas hay sobre por qué un pedido llega tarde o por "
+        "qué un cliente queda contento o no. Eso es lo que muestra esta pestaña."
     )
 
     col1, col2 = st.columns(2)
@@ -530,13 +566,13 @@ with tabs[1]:
         nulos_pct = nulos_pct[nulos_pct > 0]
         fig = px.bar(
             nulos_pct.sort_values(), orientation="h",
-            labels={"value": "% nulos", "index": ""},
+            labels={"value": "% de datos faltantes", "index": ""},
             color_discrete_sequence=[CHART_BLUE],
             text=nulos_pct.sort_values().round(2).values,
         )
         fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
         estilizar(fig, showlegend=False)
-        chart_card(fig, "% de valores nulos por columna")
+        chart_card(fig, "¿A qué datos les falta información? (% de filas vacías)")
 
     with col2:
         conteo_scores = df["review_score"].value_counts().sort_index()
@@ -551,12 +587,11 @@ with tabs[1]:
         estilizar(fig, showlegend=False)
         chart_card(fig, "Cuántas reseñas hay de cada calificación")
     insight_box(
-        "Las reseñas de 5 estrellas dominan el dataset, muy por encima de las bajas (1-2) y sobre "
-        "todo de las neutras (3 estrellas, la calificación menos común de todas). Este desbalance "
-        "es la razón por la que, más adelante, el modelo que predice la reseña se evalúa con una "
-        "métrica (F1 macro) que le da el mismo peso a las tres categorías, en vez de con el "
-        "porcentaje simple de aciertos, que premiaría a un modelo que solo supiera reconocer "
-        "reseñas positivas, las más fáciles por ser las más comunes."
+        "La mayoría de los clientes pone 5 estrellas, y las reseñas malas (1-2) son bastante "
+        "menos. Esto importa para los modelos: como casi todo es positivo, un modelo que dijera "
+        "\"positiva\" siempre acertaría muchas veces sin haber aprendido nada. Por eso, además "
+        "del porcentaje de aciertos, los evaluamos con una medida (el F1 macro) que exige que "
+        "también reconozcan bien las reseñas malas."
     )
 
     col3, col4 = st.columns(2)
@@ -579,7 +614,7 @@ with tabs[1]:
         )
         fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
         estilizar(fig, showlegend=False)
-        chart_card(fig, f"Categorías con mayor % de demora (≥{UMBRAL} pedidos)")
+        chart_card(fig, f"Categorías donde más pedidos llegan tarde (con al menos {UMBRAL} pedidos)")
 
     with col4:
         datos_dist = df.dropna(subset=["envio_demorado", "distancia_km"]).copy()
@@ -592,27 +627,29 @@ with tabs[1]:
                 labels={"distancia_km": "Distancia cliente-vendedor (km)", "envio_demorado": ""},
             )
             estilizar(fig, showlegend=False)
-            chart_card(fig, "Distancia cliente-vendedor según demora")
+            chart_card(fig, "¿A qué distancia estaba el vendedor, en pedidos a tiempo y demorados?")
         else:
             st.info("No hay suficientes datos de distancia para graficar esta relación.")
     insight_box(
-        "Las categorías con mayor % de demora y la relación entre distancia y demora cuentan la "
-        "misma historia desde dos ángulos: la logística (no solo qué se vende) es un factor real "
-        "de si un pedido llega a tiempo — algo que confirmamos con un test estadístico en el "
-        "notebook de EDA, no solo mirando el gráfico."
+        "Los dos gráficos apuntan a lo mismo: que un pedido llegue a tiempo depende mucho de la "
+        "logística (desde dónde sale y cuánto tiene que viajar), no solo de qué producto es. Los "
+        "pedidos demorados, en general, venían de vendedores más lejanos. No nos quedamos con la "
+        "impresión del gráfico: lo comprobamos con una prueba estadística en el análisis."
     )
     oportunidad_box(
-        "Priorizar la revisión logística por categoría (empezando por las de mayor % de demora en "
-        "el gráfico de la izquierda) rinde más que una campaña genérica de \"mejorar los envíos\": "
-        "concentra el esfuerzo donde el impacto en satisfacción va a ser mayor."
+        "En vez de una campaña general para \"mejorar los envíos\", conviene arrancar por las "
+        "categorías del gráfico de la izquierda, que son las que más se demoran: ahí es donde una "
+        "mejora se va a notar más en la satisfacción de los clientes."
     )
 
-    st.markdown("#### ¿Qué tan relacionadas están las variables entre sí?")
+    st.markdown("#### ¿Qué datos se relacionan entre sí?")
     st.markdown(
-        "Cada celda es la correlación entre dos variables: cuánto más cerca de 1 (azul oscuro), "
-        "más fuerte es la relación; cerca de 0 (celda clara) significa que casi no se relacionan. "
-        "Sirve para detectar, de un vistazo, qué es lo que más se mueve junto con la satisfacción "
-        "del cliente."
+        "Cada casillero muestra qué tan relacionados están dos datos, con un número entre -1 y 1. "
+        "Si es positivo, cuando uno sube el otro también (por ejemplo, el peso del producto y el "
+        "costo del envío). Si es negativo, cuando uno sube el otro baja. Cuanto más lejos de 0, "
+        "más fuerte es la relación; cerca de 0, casi no tienen que ver. La fila "
+        "que más interesa es la de \"Calificación del cliente\", porque muestra qué se mueve junto "
+        "con la satisfacción."
     )
     numericas = [
         "price", "freight_value", "flete_ratio", "tiempo_entrega_dias", "dias_vs_estimado",
@@ -630,16 +667,25 @@ with tabs[1]:
         corr, text_auto=".2f", color_continuous_scale="Blues", aspect="auto",
     )
     estilizar(fig, height=480)
-    chart_card(fig, "Correlación entre variables numéricas clave", height=480)
+    chart_card(fig, "¿Qué datos se mueven juntos? (correlación)", height=480)
+    corr_calif = corr.loc["Calificación del cliente"]
+    r_dias, r_demora, r_precio = (
+        f"{corr_calif[c] + 0.0:.2f}".replace("-0.00", "0.00").replace(".", ",")
+        for c in ["Días hasta la entrega", "Días de diferencia vs. lo prometido", "Precio"]
+    )
     insight_box(
-        "\"Días de diferencia vs. lo prometido\" es la variable más asociada a la calificación del "
-        "cliente de toda la tabla. Confirma, que cumplir con la fecha de "
-        "entrega pesa más en la satisfacción que el precio o el tamaño del producto."
+        "Lo que más se relaciona con la calificación es el tiempo de entrega: cuantos más días "
+        f"tarda el pedido, más baja la nota ({r_dias}), y lo mismo "
+        "pasa cuando llega después de la fecha prometida "
+        f"({r_demora}). El precio, en cambio, casi no "
+        f"tiene relación ({r_precio}): a los clientes les importa más recibir a "
+        "tiempo que cuánto pagaron."
     )
 
     st.markdown("#### Precio promedio por estado")
     st.markdown(
-        "¿En qué estados de Brasil se compran, en promedio, los productos más caros?"
+        "¿En qué estados de Brasil se compran, en promedio, los productos más caros? Cada barra "
+        "es el precio promedio de los productos que compraron los clientes de ese estado."
     )
     ticket_estado = df.groupby("customer_state")["price"].mean().sort_values(ascending=False).head(10)
     ticket_estado.index = ticket_estado.index.map(lambda s: NOMBRE_ESTADO.get(s, s))
@@ -651,13 +697,13 @@ with tabs[1]:
     )
     fig.update_traces(texttemplate="R$ %{text:.2f}", textposition="outside")
     estilizar(fig, showlegend=False)
-    chart_card(fig, "Top 10 estados por precio promedio del producto")
+    chart_card(fig, "Los 10 estados donde se compran productos más caros (precio promedio)")
 
     st.markdown("#### ¿Qué categorías mueven más el negocio?")
     st.markdown(
-        "Facturar mucho no es lo mismo que vender muchas unidades: una categoría puede facturar "
-        "poco por ítem pero compensar con volumen, o al revés. Estos tres gráficos separan esas "
-        "dos preguntas y muestran qué tan concentrado está el negocio."
+        "Vender muchas unidades no es lo mismo que vender mucha plata: una categoría puede tener "
+        "productos baratos y compensar vendiendo muchos, o al revés. Estos tres gráficos separan "
+        "las dos cosas y muestran si el negocio depende de pocas categorías."
     )
     col5, col6 = st.columns(2)
     with col5:
@@ -669,7 +715,7 @@ with tabs[1]:
             text=top_categorias.values,
         )
         estilizar(fig, showlegend=False)
-        chart_card(fig, "Top 10 categorías por volumen de ventas")
+        chart_card(fig, "Las 10 categorías que más unidades venden")
     with col6:
         top10_nombres = df["product_category_name_english"].value_counts().head(10).index
         precio_top = df[df["product_category_name_english"].isin(top10_nombres)]
@@ -682,11 +728,16 @@ with tabs[1]:
         )
         fig.update_xaxes(range=[0, precio_top["price"].quantile(0.95)])
         estilizar(fig, showlegend=False)
-        chart_card(fig, "Precio por categoría (top 10 por volumen)")
+        chart_card(fig, "Precios de esas mismas 10 categorías")
+    st.caption(
+        "Cómo leer las cajas: la línea del medio es el precio típico (la mitad de los productos "
+        "cuesta menos y la otra mitad, más), y la caja abarca la mitad central de los precios."
+    )
     insight_box(
-        "Las categorías de mayor volumen (belleza/salud, artículos para el hogar) tienden a tener "
-        "precios más bajos, mientras que categorías de menor volumen concentran los ítems más caros. "
-        
+        "En las categorías que más se venden, el precio típico de un producto es parecido "
+        "(entre R$ 60 y R$ 85 en la mayoría). Las excepciones son relojes y regalos, bastante más "
+        "caros, y telefonía, mucho más barata. Es decir, lo que más se vende en Olist son "
+        "productos de precio medio."
     )
 
     facturacion_pareto = df.groupby("product_category_name_english")["price"].sum().sort_values(ascending=False)
@@ -707,25 +758,104 @@ with tabs[1]:
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
     )
     estilizar(fig, height=430)
-    chart_card(fig, "¿Qué tan concentrada está la facturación? (Pareto, top 15 categorías)", height=430)
+    chart_card(fig, "¿Qué tan concentrada está la facturación? (las 15 categorías que más venden en plata)", height=430)
+    st.caption(
+        "Las barras muestran cuánto vendió cada categoría; la línea va sumando, de izquierda a "
+        "derecha, qué porcentaje del total llevan acumulado."
+    )
     pct_top5 = pct_acumulado.iloc[4]
+    pct_top10 = pct_acumulado.iloc[9]
     insight_box(
-        f"Las 5 categorías top representan el {pct_top5:.1f}% de la facturación total. La "
-        "facturación está bastante repartida entre varias categorías ,no hay una concentración "
-        "extrema tipo \"2-3 categorías son todo el negocio\", lo cual es consistente con un "
-        "marketplace de catálogo amplio."
+        f"Las 5 categorías que más venden juntan el {pct_top5:.0f}% de la facturación, y las 10 "
+        f"primeras, el {pct_top10:.0f}%. Hay concentración, pero no extrema: no es que dos o tres "
+        "categorías sean todo el negocio. Es lo esperable en una plataforma que vende de todo."
     )
 
-    st.markdown("#### ¿Qué sienten los clientes en sus propias palabras?")
+# ============================================================
+# TAB 3 — Mapa
+# ============================================================
+with tabs[2]:
+    st.subheader("¿Dónde están los clientes de Olist?")
     st.markdown(
-        "Además de la calificación numérica, medimos el **sentimiento** de cada comentario con un "
-        "modelo DistilBERT multilingüe (español/portugués, 5 clases), precalculado en "
-        "`notebooks/09_nlp_sobre_las_resenas.ipynb` y guardado en `data/pipeline/03_df_sentimiento.csv`. "
-        "Esta es una **capa descriptiva**: no alimenta el modelo de pronóstico (la reseña es un dato "
-        "post-compra y usarla sería fuga de información)."
+        "Brasil es un país enorme, y la distancia entre quien compra y quien vende influye en "
+        "cuánto tarda un pedido. Cada punto del mapa es un cliente (tomamos una muestra de hasta "
+        "5.000), ubicado donde vive y pintado según las estrellas que puso: cuanto más oscuro, "
+        "mejor calificación. Pasando el mouse por un punto se ve su estado y si el envío llegó a "
+        "tiempo."
+    )
+    validos = df.dropna(subset=["customer_lat", "customer_lng", "review_score"])
+    if validos.empty:
+        st.info("No hay coordenadas válidas para graficar el mapa con estos datos.")
+    else:
+        muestra = validos.sample(n=min(5000, len(validos)), random_state=42)
+        muestra = muestra.copy()
+        muestra["Estado"] = muestra["customer_state"].map(lambda s: NOMBRE_ESTADO.get(s, s))
+        muestra["Envío"] = muestra["envio_demorado"].map({0: "A tiempo", 1: "Demorado"})
+        fig = px.scatter_map(
+            muestra, lat="customer_lat", lon="customer_lng",
+            color="review_score", color_continuous_scale="Blues", zoom=3,
+            map_style="carto-voyager",
+            hover_data=["Estado", "Envío"],
+            labels={"review_score": "Calificación"},
+        )
+        estilizar(fig, height=600)
+        chart_card(fig, "Clientes según la calificación que dejaron (muestra de hasta 5.000 pedidos)", height=600)
+        insight_box(
+            "La mayoría de los clientes vive en el Sudeste y el Sur del país (San Pablo, Río de "
+            "Janeiro, Minas Gerais, Paraná). Es también la zona donde están casi todos los "
+            "vendedores, y por eso ahí los pedidos llegan más rápido. Los clientes del Norte y del "
+            "Nordeste están más lejos de los vendedores y esperan más."
+        )
+        oportunidad_box(
+            "En el Sudeste-Sur los envíos ya funcionan bastante bien, así que mejorar ahí cambia "
+            "poco. El mismo presupuesto rinde más en las regiones alejadas, por ejemplo abriendo "
+            "un centro de distribución o sumando vendedores locales: es donde más se espera y "
+            "donde más se puede ganar."
+        )
+
+    st.markdown("#### Resumen por estado")
+    st.markdown(
+        "Lo mismo que el mapa, pero en números. Para los 10 estados con más pedidos: cuántos "
+        "pedidos hubo, qué calificación promedio pusieron sus clientes y qué porcentaje de los "
+        "envíos llegó después de la fecha prometida."
+    )
+    resumen_estado = df.groupby("customer_state").agg(
+        pedidos=("order_id", "nunique"),
+        review_score_prom=("review_score", "mean"),
+        pct_demorado=("envio_demorado", "mean"),
+    ).sort_values("pedidos", ascending=False).head(10).round(2)
+    resumen_estado["pct_demorado"] = (resumen_estado["pct_demorado"] * 100).round(2)
+    resumen_estado.index = resumen_estado.index.map(lambda s: NOMBRE_ESTADO.get(s, s))
+    resumen_estado.index.name = "Estado"
+    resumen_estado = resumen_estado.rename(columns={
+        "pedidos": "Pedidos",
+        "review_score_prom": "Calificación promedio (1-5)",
+        "pct_demorado": "% de envíos demorados",
+    })
+    st.dataframe(resumen_estado, width="stretch")
+
+# ============================================================
+# TAB 4 — Comentarios de los clientes (procesamiento de lenguaje)
+# ============================================================
+with tabs[3]:
+    st.subheader("¿Qué dicen y cómo se sienten los clientes?")
+    st.markdown(
+        "Además de poner estrellas, unos 40.000 clientes dejaron un comentario escrito (en "
+        "portugués). En esta pestaña analizamos esos textos con técnicas de procesamiento de "
+        "lenguaje natural, es decir, programas que leen y clasifican texto. Vamos por partes: "
+        "primero, qué palabras usan; después, si el tono de cada comentario es positivo o "
+        "negativo; luego, qué modelo hace mejor ese trabajo; y al final, se pueden leer los "
+        "comentarios uno por uno. Todo esto sirve para entender mejor a los clientes, pero no se "
+        "usa en el modelo que predice la reseña (pestaña siguiente): ese modelo trabaja con lo "
+        "que se sabe al momento de la compra, y el comentario se escribe recién cuando llega el "
+        "pedido."
     )
 
-    st.markdown("##### De qué hablan: nubes de palabras")
+    st.markdown("#### Qué palabras usan: nubes de palabras")
+    st.markdown(
+        "En una nube de palabras, cuanto más grande se ve una palabra, más veces aparece en los "
+        "comentarios. Separamos las reseñas malas de las buenas para comparar de qué habla cada grupo."
+    )
     # Una fila por reseña: los pedidos con varios ítems repiten la misma reseña en el dataset unificado
     resenas_unicas = df.drop_duplicates(["order_id", "review_comment_message"])
     con_comentario = (
@@ -758,8 +888,8 @@ with tabs[1]:
             palabras = " ".join(serie.apply(_limpiar_texto)).split()
             return " ".join(p for p in palabras if p not in STOPWORDS_PT and len(p) > 2)
 
-        texto_neg = _armar_texto(resenas_unicas.loc[con_comentario & (df["review_score"] <= 2), "review_comment_message"])
-        texto_pos = _armar_texto(resenas_unicas.loc[con_comentario & (df["review_score"] >= 4), "review_comment_message"])
+        texto_neg = _armar_texto(resenas_unicas.loc[con_comentario & (resenas_unicas["review_score"] <= 2), "review_comment_message"])
+        texto_pos = _armar_texto(resenas_unicas.loc[con_comentario & (resenas_unicas["review_score"] >= 4), "review_comment_message"])
 
         col7, col8 = st.columns(2)
         with col7:
@@ -788,18 +918,26 @@ with tabs[1]:
                     "Reseñas positivas (4-5 estrellas)",
                 )
         insight_box(
-            "En las reseñas negativas predominan palabras de queja sobre entrega y plazo "
-            "(\"prazo\", \"atraso\", \"chegou\"), mientras que en las positivas predominan elogios y "
-            "menciones al cumplimiento del plazo. La misma conclusión que ya vimos con los "
-            "números, ahora confirmada desde la expresión de los propios clientes."
+            "En las reseñas malas se repiten palabras sobre la entrega: \"recebi\" (recibí), "
+            "\"entrega\", \"chegou\" (llegó), \"prazo\" (plazo), muchas veces en frases como \"todavía "
+            "no recibí\". En las buenas aparecen elogios y menciones a que llegó rápido o antes de lo "
+            "previsto. Los comentarios confirman con palabras lo que ya mostraban los números: la "
+            "entrega es lo que más pesa en la experiencia del cliente."
         )
     except Exception:
         st.info(
-            "No se pudo generar la nube de palabras en este entorno (falta la librería `wordcloud` "
-            "o no hay reseñas con comentario de texto en este dataset)."
+            "No se pudieron dibujar las nubes de palabras (falta instalar la librería `wordcloud` "
+            "o no hay reseñas con comentario)."
         )
 
-    st.markdown("##### Cómo se sienten: sentimiento con un modelo transformer")
+    st.markdown("#### Cómo se sienten: el tono de cada comentario")
+    st.markdown(
+        "Para medir el tono usamos un modelo de inteligencia artificial ya entrenado, descargado "
+        "de Hugging Face (un sitio donde se comparten modelos de este tipo). Lee cada comentario "
+        "y lo clasifica en cinco niveles, de \"muy negativo\" a \"muy positivo\". No conoce las "
+        "estrellas que puso el cliente: solo lee el texto. Por eso podemos comparar lo que dice "
+        "el modelo con la calificación real y ver si coinciden."
+    )
 
     RUTA_SENTIMIENTO = Path("data/pipeline/03_df_sentimiento.csv")
     ORDEN_SENT = ["Very Negative", "Negative", "Neutral", "Positive", "Very Positive"]
@@ -812,9 +950,9 @@ with tabs[1]:
 
     if not RUTA_SENTIMIENTO.exists():
         st.info(
-            "No existe el artefacto de sentimiento (`data/pipeline/03_df_sentimiento.csv`). "
-            "Ejecutá `notebooks/09_nlp_sobre_las_resenas.ipynb` (con `requirements-nlp.txt` instalado) "
-            "para generarlo y ver esta sección."
+            "Todavía no está calculado el tono de los comentarios "
+            "(`data/pipeline/03_df_sentimiento.csv`). Para verlo, ejecutá "
+            "`notebooks/09_nlp_sobre_las_resenas.ipynb`."
         )
     else:
         sent = pd.read_csv(RUTA_SENTIMIENTO)
@@ -836,38 +974,148 @@ with tabs[1]:
         )
         fig_dist.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig_dist.update_layout(showlegend=False)
-        fig_dist.update_yaxes(title_text="Reseñas con comentario")
+        fig_dist.update_yaxes(title_text="Cantidad de comentarios")
         estilizar(fig_dist, height=360)
-        chart_card(fig_dist, f"Distribución del sentimiento ({len(sent):,} reseñas con texto)", height=360)
+        chart_card(fig_dist, f"¿Qué tono tienen los comentarios? ({len(sent):,} comentarios)".replace(",", "."), height=360)
 
         # --- KPIs de la señal oculta (texto vs estrellas) ---
         k1, k2, k3 = st.columns(3)
-        kpi_card(k1, f"{int(((sent['review_score'] >= 4) & es_neg).sum()):,}",
-                 "4-5★ con texto negativo (candidatas a revisar)")
-        kpi_card(k2, f"{int(((sent['review_score'] <= 2) & es_pos).sum()):,}",
-                 "1-2★ con texto positivo (candidatas a revisar)")
-        nclaro = int((es_neg | es_pos).sum())
+        kpi_card(k1, f"{int(((sent['review_score'] >= 4) & es_neg).sum()):,}".replace(",", "."),
+                 "Pusieron 4-5 estrellas, pero el texto suena negativo")
+        kpi_card(k2, f"{int(((sent['review_score'] <= 2) & es_pos).sum()):,}".replace(",", "."),
+                 "Pusieron 1-2 estrellas, pero el texto suena positivo")
+        # Solo comentarios con tono claro y reseñas que no son de 3 estrellas (mismo criterio que el notebook 09)
+        polo_claro = (es_neg | es_pos) & (sent["review_score"] != 3)
+        nclaro = int(polo_claro.sum())
         coher = float((((es_pos) & (sent["review_score"] >= 4)) | ((es_neg) & (sent["review_score"] <= 2))).sum() / nclaro)
-        kpi_card(k3, f"{coher * 100:.1f}%", "Coincidencia texto↔estrellas (polo claro)")
+        kpi_card(k3, f"{coher * 100:.0f}%", "Comentarios con tono claro que coinciden con sus estrellas (sin contar los de 3 estrellas)")
 
         # --- Heatmap sentimiento x estrellas (% por fila) ---
         piv = pd.crosstab(sent["sentimiento_es"], sent["review_score"]).reindex(ETIQUETAS_SENT)
         pct_piv = (piv.div(piv.sum(axis=1), axis=0) * 100).round(1)
         fig_heat = px.imshow(
             pct_piv, text_auto=".0f", aspect="auto", color_continuous_scale="Reds",
-            labels=dict(x="Estrellas reales", y="Sentimiento del texto", color="%"),
+            labels=dict(x="Estrellas que puso el cliente", y="Tono que detectó el modelo", color="%"),
         )
         estilizar(fig_heat, height=360)
-        chart_card(fig_heat, "¿El texto coincide con las estrellas? (% dentro de cada sentimiento)", height=360)
+        chart_card(fig_heat, "¿El tono del comentario coincide con las estrellas?", height=360)
+        st.caption(
+            "Cada fila es un tono y suma 100%: muestra cuántas estrellas pusieron, en porcentaje, "
+            "los clientes cuyo comentario el modelo clasificó con ese tono."
+        )
 
         insight_box(
-            f"El {coher * 100:.0f}% de las reseñas con un polo claro coincide con su calificación: el "
-            "modelo capta bien la **dirección** del sentimiento. Las **discrepancias** (texto que contradice "
-            "a las estrellas) mezclan casos reales con **errores del modelo**, por eso se presentan como "
-            "candidatas a revisar y no como un conteo de clientes insatisfechos. En el notebook 09 un "
-            "clasificador TF-IDF entrenado con nuestras propias estrellas sirve de referencia para "
-            "medir al transformer."
+            f"Cuando el comentario es claramente bueno o claramente malo, en el {coher * 100:.0f}% de "
+            "los casos coincide con las estrellas: el modelo entiende bien hacia dónde va cada "
+            "comentario. Los casos que no coinciden (los dos primeros indicadores de arriba) hay que mirarlos "
+            "con cuidado: algunos son reales, como alguien que pone 5 estrellas pero se queja del "
+            "costo del envío, y otros son errores del modelo, que a veces no entiende frases como "
+            "\"todavía no lo recibí\". Por eso hablamos de casos \"a revisar\" y no de clientes "
+            "insatisfechos confirmados."
         )
+
+        # --- Comparación: modelo de Hugging Face vs. modelo propio (TF-IDF) ---
+        RUTA_NLP_METRICAS = MODELOS_DIR / "nlp_comparacion_modelos.csv"
+        RUTA_NLP_MATRIZ = MODELOS_DIR / "nlp_matriz_confusion.csv"
+        RUTA_NLP_EJEMPLOS = MODELOS_DIR / "nlp_ejemplos_desacuerdo.csv"
+
+        st.markdown("#### ¿Qué modelo entiende mejor las reseñas?")
+        st.markdown(
+            "El modelo de arriba lo descargamos ya entrenado desde Hugging Face: nunca vio reseñas de "
+            "Olist. Para saber si conviene usarlo, entrenamos un modelo propio, más simple, que aprendió "
+            "directamente de las reseñas de Olist y de las estrellas que pusieron los clientes. "
+            "Después les dimos a los dos las mismas 8.000 reseñas (que el modelo propio no había visto "
+            "al entrenar) y contamos cuántas veces cada uno adivinaba bien si la reseña era negativa "
+            "(1-2 estrellas), neutral (3) o positiva (4-5)."
+        )
+
+        if not (RUTA_NLP_METRICAS.exists() and RUTA_NLP_MATRIZ.exists()):
+            st.info(
+                "Todavía no está la comparación de modelos. Ejecutá "
+                "`notebooks/09_nlp_sobre_las_resenas.ipynb` para generarla en `modelos_output/`."
+            )
+        else:
+            metricas_nlp = pd.read_csv(RUTA_NLP_METRICAS)
+            matriz_nlp = pd.read_csv(RUTA_NLP_MATRIZ)
+            NOMBRE_HF = "Modelo de Hugging Face (preentrenado)"
+            NOMBRE_PROPIO = "Modelo propio (TF-IDF, entrenado con nuestras reseñas)"
+            NOMBRES_GRAFICO = {NOMBRE_HF: "Hugging Face (ya entrenado)",
+                               NOMBRE_PROPIO: "Modelo propio (entrenado con Olist)"}
+            POLARIDAD_ES = {"negativo": "Negativa", "neutral": "Neutral", "positivo": "Positiva"}
+            fila_hf = metricas_nlp.set_index("modelo").loc[NOMBRE_HF]
+            fila_propio = metricas_nlp.set_index("modelo").loc[NOMBRE_PROPIO]
+
+            m1, m2, m3 = st.columns(3)
+            kpi_card(m1, f"{fila_propio['accuracy'] * 100:.0f}%", "Aciertos del modelo propio")
+            kpi_card(m2, f"{fila_hf['accuracy'] * 100:.0f}%", "Aciertos del modelo de Hugging Face")
+            kpi_card(m3, f"{(fila_propio['accuracy'] - fila_hf['accuracy']) * 100:+.0f} puntos",
+                     "Ventaja del modelo propio")
+
+            # Aciertos por tipo de reseña, los dos modelos lado a lado
+            barras = metricas_nlp.melt(
+                id_vars="modelo",
+                value_vars=["recall_negativo", "recall_neutral", "recall_positivo"],
+                var_name="tipo", value_name="acierto",
+            )
+            barras["tipo"] = barras["tipo"].str.replace("recall_", "").map(POLARIDAD_ES)
+            barras["modelo"] = barras["modelo"].map(NOMBRES_GRAFICO)
+            barras["acierto"] = barras["acierto"] * 100
+            fig_comp = px.bar(
+                barras, x="tipo", y="acierto", color="modelo", barmode="group", text="acierto",
+                color_discrete_sequence=[PALETA_CATEGORICA[3], CHART_BLUE],
+                category_orders={"tipo": ["Negativa", "Neutral", "Positiva"]},
+            )
+            fig_comp.update_traces(texttemplate="%{text:.0f}%", textposition="outside")
+            fig_comp.update_yaxes(title_text="% de reseñas bien clasificadas", range=[0, 105])
+            fig_comp.update_xaxes(title_text="Tipo de reseña (según las estrellas)")
+            fig_comp.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, title=None))
+            estilizar(fig_comp, height=380)
+            chart_card(fig_comp, "¿Qué parte de cada tipo de reseña reconoce cada modelo?", height=380)
+
+            # Matrices de confusión, una por modelo
+            col_hf, col_propio = st.columns(2)
+            for col_st, nombre in [(col_hf, NOMBRE_HF), (col_propio, NOMBRE_PROPIO)]:
+                datos = matriz_nlp[matriz_nlp["modelo"] == nombre]
+                tabla = datos.pivot(index="real", columns="predicho", values="pct").reindex(
+                    index=list(POLARIDAD_ES), columns=list(POLARIDAD_ES))
+                tabla.index = [POLARIDAD_ES[i] for i in tabla.index]
+                tabla.columns = [POLARIDAD_ES[c] for c in tabla.columns]
+                fig_m = px.imshow(
+                    tabla, text_auto=".0f", aspect="auto", color_continuous_scale="Blues",
+                    zmin=0, zmax=100,
+                    labels=dict(x="Lo que dijo el modelo", y="Lo que dicen las estrellas", color="%"),
+                )
+                fig_m.update_layout(coloraxis_showscale=False)
+                estilizar(fig_m, height=330)
+                with col_st:
+                    chart_card(fig_m, f"{NOMBRES_GRAFICO[nombre]}: aciertos y confusiones (%)", height=330)
+            st.caption(
+                "Cómo leer estas tablas: cada fila es un tipo de reseña según las estrellas, y suma 100%. "
+                "La diagonal (de arriba a la izquierda a abajo a la derecha) son los aciertos; el resto, "
+                "las reseñas que el modelo confundió con otro tipo."
+            )
+
+            insight_box(
+                f"El modelo propio acierta el {fila_propio['accuracy'] * 100:.0f}% de las veces y el de "
+                f"Hugging Face, el {fila_hf['accuracy'] * 100:.0f}%. Gana el más simple porque aprendió "
+                "de cómo escriben los clientes de Olist: por ejemplo, sabe que \"chegou antes do prazo\" "
+                "(llegó antes de lo previsto) es un elogio, algo que el modelo de Hugging Face suele "
+                "tomar como neutral o negativo. A los dos les cuestan las reseñas neutrales, que "
+                "suelen mezclar algo bueno y algo malo en el mismo comentario."
+            )
+
+            if RUTA_NLP_EJEMPLOS.exists():
+                ejemplos_nlp = pd.read_csv(RUTA_NLP_EJEMPLOS)
+                with st.expander("Ver ejemplos de reseñas en las que los modelos no coinciden"):
+                    for caso, grupo in ejemplos_nlp.groupby("caso", sort=False):
+                        st.markdown(f"**{caso}**")
+                        for _, r in grupo.iterrows():
+                            st.markdown(
+                                f"- {int(r['review_score'])}★ · Hugging Face: "
+                                f"{POLARIDAD_ES[r['pred_huggingface']].lower()} · Modelo propio: "
+                                f"{POLARIDAD_ES[r['pred_tfidf']].lower()} · "
+                                f"“{' '.join(str(r['review_comment_message']).split())}”"
+                            )
 
         # --- Sentimiento negativo por categoría ---
         mapa_cat = df.drop_duplicates("order_id").set_index("order_id")["product_category_name_english"]
@@ -888,24 +1136,29 @@ with tabs[1]:
                 color="pct_neg", color_continuous_scale="OrRd",
             )
             fig_cat.update_layout(showlegend=False)
-            fig_cat.update_xaxes(title_text="% de reseñas con texto negativo")
+            fig_cat.update_xaxes(title_text="% de comentarios con tono negativo")
             fig_cat.update_traces(texttemplate="%{x:.0f}%", textposition="outside")
             estilizar(fig_cat, height=380)
-            chart_card(fig_cat, "Categorías con el texto más enojado (mín. 300 reseñas)", height=380)
+            chart_card(fig_cat, "Categorías con más comentarios negativos (con al menos 300 comentarios)", height=380)
 
         # --- Explorador de reseñas por sentimiento ---
-        st.markdown("##### Explorador de reseñas por sentimiento")
+        st.markdown("#### Leer los comentarios")
+        st.markdown(
+            "Acá se pueden leer los comentarios reales, filtrados por tono o buscando una palabra "
+            "(en portugués: por ejemplo \"prazo\" para plazo o \"entrega\")."
+        )
+        FILTRO_DISCREPANCIAS = "Solo los que no coinciden con las estrellas"
         col_f1, col_f2 = st.columns([2, 1])
         with col_f1:
             filtro_sent = st.selectbox(
-                "Filtrar por sentimiento",
-                ["Todos", "Solo discrepancias (texto ≠ estrellas)"] + ETIQUETAS_SENT,
+                "Tono del comentario",
+                ["Todos", FILTRO_DISCREPANCIAS] + ETIQUETAS_SENT,
             )
         with col_f2:
             texto_busqueda = st.text_input("Buscar palabra", placeholder="prazo, entrega, produto...")
 
         vista = sent.copy()
-        if filtro_sent == "Solo discrepancias (texto ≠ estrellas)":
+        if filtro_sent == FILTRO_DISCREPANCIAS:
             vista = vista.loc[
                 ((es_pos) & (vista["review_score"] <= 2)) | ((es_neg) & (vista["review_score"] >= 4))
             ]
@@ -917,103 +1170,50 @@ with tabs[1]:
             ]
 
         if vista.empty:
-            st.info("Ninguna reseña coincide con el filtro seleccionado.")
+            st.info("No hay comentarios que cumplan con ese filtro.")
         else:
             st.caption(
-                f"{len(vista):,} reseñas coinciden · confianza media {vista['confianza'].mean():.2f}"
+                f"{len(vista):,} comentarios encontrados".replace(",", ".")
+                + f" · seguridad promedio del modelo: {vista['confianza'].mean() * 100:.0f}%"
             )
             mostrar = vista.sort_values("confianza", ascending=False).head(80)
             for _, r in mostrar.iterrows():
                 resumen = str(r["review_comment_message"])[:60]
                 with st.expander(
                     f"{int(r['review_score'])}★ · {r['sentimiento_es']} "
-                    f"(conf. {r['confianza']:.2f}) · {resumen}"
+                    f"(seguridad {r['confianza'] * 100:.0f}%) · {resumen}"
                 ):
                     st.write(f"“{r['review_comment_message']}”")
             if len(vista) > len(mostrar):
-                st.caption(f"Mostrando las {len(mostrar)} de mayor confianza de {len(vista):,}.")
+                st.caption(
+                    f"Se muestran los {len(mostrar)} en los que el modelo está más seguro, de "
+                    + f"{len(vista):,} en total.".replace(",", ".")
+                )
 
         oportunidad_box(
-            "Un filtro automático de reseñas con texto negativo pero buena calificación permitiría "
-            "detectar quejas que el puntaje no muestra. Para usarlo en postventa habría que validar "
-            "primero una muestra a mano, porque parte de esas discrepancias son errores del modelo."
+            "Un aviso automático para los comentarios con tono negativo pero buena calificación "
+            "permitiría encontrar quejas que las estrellas no muestran, por ejemplo para que el "
+            "equipo de atención al cliente se comunique con esas personas. Antes de usarlo habría "
+            "que revisar a mano una muestra, porque una parte de esos casos son errores del modelo."
         )
 
-# ============================================================
-# TAB 3 — Mapa
-# ============================================================
-with tabs[2]:
-    st.subheader("¿Dónde están los clientes de Olist?")
-    st.markdown(
-        "Brasil es un país enorme, y la distancia entre quien compra y quien vende es una de las "
-        "razones por las que un pedido puede tardar más o menos. Este mapa ubica a una muestra de "
-        "clientes según dónde viven y cómo calificaron su pedido."
-    )
-    validos = df.dropna(subset=["customer_lat", "customer_lng", "review_score"])
-    if validos.empty:
-        st.info("No hay coordenadas válidas para graficar el mapa con estos datos.")
-    else:
-        muestra = validos.sample(n=min(5000, len(validos)), random_state=42)
-        muestra = muestra.copy()
-        muestra["Estado"] = muestra["customer_state"].map(lambda s: NOMBRE_ESTADO.get(s, s))
-        muestra["Envío"] = muestra["envio_demorado"].map({0: "A tiempo", 1: "Demorado"})
-        fig = px.scatter_map(
-            muestra, lat="customer_lat", lon="customer_lng",
-            color="review_score", color_continuous_scale="Blues", zoom=3,
-            map_style="carto-voyager",
-            hover_data=["Estado", "Envío"],
-            labels={"review_score": "Calificación"},
-        )
-        estilizar(fig, height=600)
-        chart_card(fig, "Clientes según la calificación que dejaron (muestra de hasta 5.000 pedidos)", height=600)
-        insight_box(
-            "Los clientes se concentran fuerte en el eje Sudeste-Sur (San Pablo, Río de Janeiro, "
-            "Minas Gerais, Paraná) — la misma región donde vimos, en la exploración, mejores "
-            "tiempos de entrega, porque está más cerca de la mayoría de los vendedores."
-        )
-        oportunidad_box(
-            "Si se abre un centro de distribución o se suman vendedores locales en el eje "
-            "Sudeste-Sur, el impacto en tiempos de entrega va a ser menor al de invertir el mismo "
-            "presupuesto en regiones más alejadas — ahí la ganancia potencial (y también la "
-            "necesidad) es mayor."
-        )
-
-    st.markdown("#### Resumen por estado")
-    st.markdown(
-        "La misma información que el mapa, pero en números: los 10 estados con más pedidos, "
-        "cuántos son, qué calificación promedio dejan sus clientes y qué porcentaje de esos "
-        "envíos llegó después de la fecha prometida."
-    )
-    resumen_estado = df.groupby("customer_state").agg(
-        pedidos=("order_id", "nunique"),
-        review_score_prom=("review_score", "mean"),
-        pct_demorado=("envio_demorado", "mean"),
-    ).sort_values("pedidos", ascending=False).head(10).round(2)
-    resumen_estado["pct_demorado"] = (resumen_estado["pct_demorado"] * 100).round(2)
-    resumen_estado.index = resumen_estado.index.map(lambda s: NOMBRE_ESTADO.get(s, s))
-    resumen_estado.index.name = "Estado"
-    resumen_estado = resumen_estado.rename(columns={
-        "pedidos": "Pedidos",
-        "review_score_prom": "Calificación promedio (1-5)",
-        "pct_demorado": "% de envíos demorados",
-    })
-    st.dataframe(resumen_estado, width="stretch")
 
 # ============================================================
-# TAB 4 — Modelo de clasificación
+# TAB 5 — Modelo de clasificación
 # ============================================================
-with tabs[3]:
+with tabs[4]:
     st.subheader("¿La reseña va a ser positiva o negativa?")
     st.markdown(
-        "La idea de este modelo es anticiparse: con datos que ya se conocen apenas se hace la "
-        "compra (qué se compró, a qué precio, desde dónde, y el historial del vendedor), estimar si "
-        "esa persona va a terminar dejando una reseña **positiva** o **negativa** — antes de que el "
-        "pedido siquiera llegue. A propósito, el modelo no usa si el envío llegó tarde ni ningún "
-        "otro dato posterior a la entrega: si lo hiciera, estaría \"haciendo trampa\", prediciendo "
-        "el resultado con información que en la práctica no está disponible a tiempo para actuar."
+        "Este modelo intenta adelantarse: en el momento en que alguien hace una compra, estima si "
+        "esa persona va a terminar dejando una reseña **positiva** (4-5 estrellas) o **negativa** "
+        "(1-2 estrellas), antes de que el pedido llegue. Para eso solo usa datos que ya se conocen "
+        "al comprar: qué producto es, cuánto cuesta, cuánto sale el envío, la distancia, y cómo le "
+        "fue antes a ese vendedor. A propósito, no usa si el envío llegó tarde: ese dato todavía "
+        "no existe cuando se hace la compra, y usarlo sería hacer trampa."
     )
     st.caption(
-        "Técnica: LightGBM (clasificación binaria), entrenado en `notebooks/11_modelado.ipynb`."
+        "Técnica: LightGBM (un modelo de clasificación basado en árboles de decisión), "
+        "entrenado en `notebooks/11_modelado.ipynb`."
     )
 
     if modelos["comparacion"] is None:
@@ -1029,15 +1229,16 @@ with tabs[3]:
         acc = float(comp["accuracy"].iloc[0])
 
         c1, c2, c3 = st.columns(3)
-        kpi_card(c1, f"{auc:.2f}", "AUC (0,5 = azar; 1 = perfecto)")
-        kpi_card(c2, f"{f1:.2f}", "F1 macro (0 a 1)")
-        kpi_card(c3, f"{acc:.0%}", "Aciertos totales")
+        kpi_card(c1, f"{acc:.0%}", "Aciertos totales")
+        kpi_card(c2, f"{auc:.2f}", "Capacidad de distinguir buenas de malas (AUC: 0,5 = al azar, 1 = perfecto)")
+        kpi_card(c3, f"{f1:.2f}", "Equilibrio entre ambos tipos de reseña (F1 macro: de 0 a 1)")
+        auc_txt = f"{auc:.2f}".replace(".", ",")
         insight_box(
-            "El modelo predice **solo con datos conocidos al momento de la compra**, así que no hay "
-            "trampa. Un AUC de ~0,72 significa que separa bastante mejor que el azar: sirve para "
-            "**señalar pedidos de riesgo** antes de que lleguen, no para dar una certeza. El techo "
-            "es intrínseco: gran parte de lo que define la reseña (cómo salió la entrega) todavía no "
-            "ocurrió cuando el cliente compra."
+            f"El modelo acierta el {acc:.0%} de las veces y distingue bastante mejor que tirar una "
+            f"moneda (AUC de {auc_txt}), aunque está lejos de ser perfecto. Tiene un límite que no "
+            "depende del modelo: lo que más define si el cliente queda conforme es cómo sale la "
+            "entrega, y eso todavía no pasó cuando se hace la compra. Por eso sirve para "
+            "**señalar pedidos con riesgo** y prestarles más atención, no para dar una certeza."
         )
 
         col1, col2 = st.columns([1, 1])
@@ -1054,14 +1255,19 @@ with tabs[3]:
                 fig.update_coloraxes(showscale=False)
                 chart_card(fig, "Aciertos y errores del modelo")
                 st.caption(
-                    "Cada fila es lo que pasó de verdad; cada columna, lo que predijo el modelo. "
-                    "La diagonal son los aciertos."
+                    "Cada fila es cómo fue la reseña de verdad; cada columna, lo que dijo el modelo. "
+                    "Los casilleros de la diagonal (de arriba a la izquierda a abajo a la derecha) "
+                    "son los aciertos."
                 )
+                valores_cm = modelos["matriz_confusion"].to_numpy()
+                pct_neg_detectadas = valores_cm[0, 0] / valores_cm[0].sum() * 100
+                pct_pos_alarma = valores_cm[1, 0] / valores_cm[1].sum() * 100
                 insight_box(
-                    "El modelo detecta una buena parte de las reseñas **negativas** (que son las "
-                    "pocas e importantes), a costa de marcar algunos pedidos buenos como de riesgo: "
-                    "un intercambio razonable cuando el objetivo es no dejar pasar un cliente "
-                    "insatisfecho."
+                    f"De cada 10 reseñas **negativas**, el modelo detecta unas "
+                    f"{pct_neg_detectadas / 10:.0f}. El costo es que también marca como riesgosos "
+                    f"a algunos pedidos que terminaron bien (cerca del {pct_pos_alarma:.0f}%). "
+                    "Es un intercambio razonable: es preferible revisar de más algunos pedidos "
+                    "que dejar pasar a un cliente que va a quedar disconforme."
                 )
         with col2:
             if modelos["importancia"] is not None:
@@ -1072,16 +1278,17 @@ with tabs[3]:
                     color_discrete_sequence=[CHART_BLUE],
                 )
                 estilizar(fig, showlegend=False, height=460)
-                chart_card(fig, "¿Qué variables mira más el modelo? (top 15)", height=460)
+                chart_card(fig, "¿Qué datos mira más el modelo para decidir? (los 15 principales)", height=460)
                 insight_box(
-                    "La variable más influyente es la **reseña histórica promedio del vendedor**: el "
-                    "mejor predictor de si un cliente va a quedar conforme es cómo quedaron los "
-                    "clientes anteriores de ese mismo vendedor. La distancia y el flete también pesan."
+                    "Lo que más usa el modelo es la **calificación promedio que ya tenía el "
+                    "vendedor**: la mejor pista de si un cliente va a quedar conforme es cómo "
+                    "quedaron los clientes anteriores de ese mismo vendedor. Después pesan la "
+                    "distancia y el costo del envío."
                 )
                 oportunidad_box(
-                    "Si el historial del vendedor domina la predicción, conviene un programa de "
-                    "seguimiento a los vendedores con peores antecedentes antes de que se traduzca "
-                    "en otra mala reseña."
+                    "Como el historial del vendedor es lo que más anticipa una mala reseña, conviene "
+                    "hacer un seguimiento de los vendedores con peores antecedentes, antes de que "
+                    "acumulen más clientes disconformes."
                 )
 
         if modelos["predicciones"] is not None:
@@ -1091,24 +1298,28 @@ with tabs[3]:
                 pred, x="proba_positiva", color="Reseña real", barmode="overlay", nbins=30,
                 category_orders={"Reseña real": ETIQUETAS_RESEÑA},
                 color_discrete_sequence=[PALETA_CATEGORICA[7], CHART_BLUE],
-                labels={"proba_positiva": "Probabilidad que asignó el modelo a \"reseña positiva\""},
+                labels={"proba_positiva": "Probabilidad de reseña positiva que calculó el modelo"},
             )
             estilizar(fig)
             chart_card(fig, "¿Qué tan seguro estaba el modelo, según cómo terminó cada pedido?")
             insight_box(
-                "La curva celeste (pedidos que sí terminaron en reseña positiva) se corre a la "
-                "derecha (probabilidades altas) y la roja (negativa) a la izquierda. Que se separen "
-                "—aunque con solape— es exactamente lo que mide el AUC."
+                "Las barras azules son pedidos que terminaron con reseña positiva, y se acumulan a "
+                "la derecha: el modelo les daba una probabilidad alta de salir bien. Las rojas son "
+                "los que terminaron mal, y quedan más hacia la izquierda. Que los dos colores se "
+                "separen, aunque se superpongan bastante, muestra que el modelo distingue unos de "
+                "otros, pero no siempre."
             )
 
 # ============================================================
-# TAB 5 — Predecir una compra
+# TAB 6 — Predecir una compra
 # ============================================================
-with tabs[4]:
+with tabs[5]:
     st.subheader("Predecir la reseña de una compra")
     st.markdown(
-        "Usá el modelo entrenado para estimar si una compra terminará en reseña **positiva** o "
-        "**negativa**. Elegí un vendedor real (se usa su historial) y completá los datos del pedido."
+        "Acá podés probar el modelo de la pestaña anterior con una compra inventada. Elegí un "
+        "vendedor real de la lista (el modelo usa cómo le fue con sus clientes anteriores), "
+        "completá los datos del pedido y apretá **Predecir reseña**: el modelo estima si esa "
+        "compra va a terminar con una reseña **positiva** o **negativa**."
     )
 
     bundle, catalogo = cargar_modelo_prediccion()
@@ -1133,8 +1344,8 @@ with tabs[4]:
             cat = catalogo.copy()
             cat["etiqueta"] = cat.apply(
                 lambda r: f"{r['seller_id'][:8]}… · {int(r['hist_pedidos_vendedor'])} pedidos · "
-                          f"reseña prom {r['hist_resena_prom_vendedor']:.2f} · "
-                          f"{r['hist_pct_demora_vendedor'] * 100:.0f}% demora · {r['seller_state']}",
+                          f"calificación promedio {r['hist_resena_prom_vendedor']:.2f} · "
+                          f"{r['hist_pct_demora_vendedor'] * 100:.0f}% de envíos demorados · {r['seller_state']}",
                 axis=1,
             )
             sel = st.selectbox("Vendedor", options=cat.index,
@@ -1146,12 +1357,12 @@ with tabs[4]:
             d1, d2, d3 = st.columns(3)
             with d1:
                 price = st.number_input("Precio del producto (R$)", min_value=0.0, value=120.0, step=10.0)
-                freight = st.number_input("Costo de flete (R$)", min_value=0.0, value=20.0, step=5.0)
+                freight = st.number_input("Costo del envío (R$)", min_value=0.0, value=20.0, step=5.0)
                 items = st.number_input("Ítems en el pedido", min_value=1, value=1)
             with d2:
                 peso = st.number_input("Peso del producto (g)", min_value=0.0, value=800.0, step=100.0)
                 volumen = st.number_input("Volumen del producto (cm³)", min_value=0.0, value=5000.0, step=500.0)
-                cuotas = st.number_input("Cuotas máximas del pago", min_value=1, value=1)
+                cuotas = st.number_input("Cantidad de cuotas", min_value=1, value=1)
             with d3:
                 distancia = st.number_input("Distancia cliente-vendedor (km)", min_value=0.0, value=500.0, step=50.0)
                 categoria = st.selectbox("Categoría del producto", opciones["product_category_name_english"])
@@ -1203,37 +1414,41 @@ with tabs[4]:
                 estilizar(fig, height=200, showlegend=False)
                 chart_card(fig, "Probabilidad estimada por el modelo")
             insight_box(
-                "Esta es una estimación de **riesgo al momento de la compra**, no una certeza "
-                "(AUC ≈ 0,72): sirve para señalar qué pedidos vigilar. La reseña histórica del "
-                "vendedor es la variable que más influye en la predicción."
+                "Esto es una estimación del **riesgo** de que el cliente quede disconforme, hecha "
+                "con lo que se sabe al momento de comprar. No es una certeza: sirve para decidir "
+                "qué pedidos conviene seguir de cerca. Probá cambiar de vendedor: su calificación "
+                "promedio es lo que más mueve el resultado."
             )
 
 # ============================================================
-# TAB 6 — Clustering de vendedores
+# TAB 7 — Clustering de vendedores
 # ============================================================
-with tabs[5]:
+with tabs[6]:
     st.subheader("¿Todos los vendedores se comportan igual?")
     st.markdown(
-        "Este segundo modelo agrupa a los vendedores según cómo "
-        "entregan sus pedidos (tiempos, distancias, cuántos envíos demoran) sin decirle de "
-        "antemano en qué grupos deberían caer. Es una técnica que sirve para descubrir perfiles "
-        "que no eran obvios a simple vista: por ejemplo, separar a un pequeño grupo de vendedores "
-        "problemáticos del resto, que en promedio funciona bien."
+        "Este segundo modelo arma grupos de vendedores parecidos entre sí, según cómo entregan "
+        "sus pedidos: cuánto tardan, a qué distancia envían, cuántos envíos se les demoran, qué "
+        "calificación reciben. Nadie le dice de antemano qué grupos tiene que formar: los "
+        "encuentra solo, mirando los datos. Sirve para descubrir perfiles que a simple vista no "
+        "se ven, como un grupo chico de vendedores con problemas dentro de un conjunto que, en "
+        "general, funciona bien."
     )
     st.caption(
-        "Técnica: K-Means (agrupamiento no supervisado), entrenado en `notebooks/11_modelado.ipynb`."
+        "Técnica: K-Means (agrupamiento sin etiquetas previas, o \"no supervisado\"), entrenado "
+        "en `notebooks/11_modelado.ipynb`."
     )
 
     if modelos["cluster_resumen"] is None:
         st.warning(
             "No encuentro `modelos_output/clustering_resumen.csv`. Corré primero "
-            "`notebooks/11_modelado.ipynb` para generar los resultados del clustering."
+            "`notebooks/11_modelado.ipynb` para generar los grupos de vendedores."
         )
     else:
         st.markdown(
-            "Antes de agrupar hay que decidir en cuántos grupos (\"k\"): estos dos gráficos ayudan "
-            "a elegir ese número, buscando el punto en el que sumar un grupo más ya no mejora "
-            "mucho la separación."
+            "Lo único que hay que decidir antes es cuántos grupos armar (a ese número se le dice "
+            "\"k\"). Estos dos gráficos ayudan a elegirlo: el de la izquierda muestra qué tan "
+            "parecidos son los vendedores dentro de cada grupo (cuanto más bajo, mejor), y el de la "
+            "derecha, qué tan bien separados quedan los grupos entre sí (cuanto más alto, mejor)."
         )
         col1, col2 = st.columns(2)
         with col1:
@@ -1249,7 +1464,7 @@ with tabs[5]:
                     yaxis_title="Dispersión dentro de los grupos",
                 )
                 estilizar(fig, showlegend=False)
-                chart_card(fig, "Método del codo")
+                chart_card(fig, "Método del codo: ¿qué tan parecidos son los vendedores de cada grupo?")
         with col2:
             if modelos["elbow"] is not None:
                 fig = go.Figure()
@@ -1262,16 +1477,37 @@ with tabs[5]:
                     yaxis_title="Separación entre grupos",
                 )
                 estilizar(fig, showlegend=False)
-                chart_card(fig, "Puntaje de silhouette")
+                chart_card(fig, "Puntaje de silhouette: ¿qué tan separados quedan los grupos?")
         insight_box(
-            "El número de grupos elegido es el que mejor combina un \"codo\" visible en el primer "
-            "gráfico (a partir de ahí, agregar más grupos deja de aportar) con un puntaje de "
-            "separación razonable en el segundo,  no necesariamente el más alto de la lista, sino "
-            "el más fácil de interpretar para el negocio."
+            "En datos reales, los gráficos casi nunca dan una respuesta exacta, y este es el caso: "
+            "el \"codo\" de la izquierda (el punto donde la línea deja de bajar fuerte) no es muy "
+            "marcado, y en el de la derecha la mejor separación se da con 2 grupos. Elegimos 3 "
+            "porque es un equilibrio razonable entre los dos gráficos y, sobre todo, porque da "
+            "grupos que se pueden explicar en términos de negocio. Con más grupos, la separación "
+            "no mejora de forma clara."
         )
 
         st.markdown("#### Perfil de cada grupo de vendedores")
-        st.dataframe(modelos["cluster_resumen"].round(2), width="stretch")
+        st.markdown(
+            "Cada fila es un grupo y muestra el promedio de sus vendedores: días de entrega, "
+            "proporción de envíos demorados (0,2 = 20%), distancia, costo del envío, cantidad de "
+            "pedidos, calificación, precio, cantidad de categorías que venden y cuántos vendedores "
+            "hay en el grupo."
+        )
+        st.dataframe(
+            modelos["cluster_resumen"].round(2).rename_axis("Grupo").rename(columns={
+                "tiempo_entrega_promedio": "Días de entrega (prom.)",
+                "pct_demorado": "Envíos demorados (proporción)",
+                "distancia_promedio": "Distancia al cliente (km)",
+                "flete_promedio": "Costo de envío (R$)",
+                "pedidos": "Pedidos por vendedor",
+                "reseña_promedio": "Calificación promedio",
+                "precio_promedio": "Precio promedio (R$)",
+                "categorias_distintas": "Categorías que vende",
+                "n_vendedores": "Cantidad de vendedores",
+            }),
+            width="stretch",
+        )
 
         if modelos["cluster_asignaciones"] is not None:
             asign = modelos["cluster_asignaciones"].copy()
@@ -1287,75 +1523,79 @@ with tabs[5]:
                 color_discrete_sequence=PALETA_CATEGORICA,
             )
             estilizar(fig, height=520)
-            chart_card(fig, "Cada punto es un vendedor, agrupado por color", height=520)
+            chart_card(fig, "Cada punto es un vendedor; el color indica a qué grupo pertenece", height=520)
+            st.caption(
+                "Hacia la derecha, vendedores que tardan más en entregar; hacia arriba, vendedores "
+                "con más envíos demorados. El tamaño del punto indica cuántos pedidos tiene."
+            )
             insight_box(
-                "Debería verse un grupo chico y claramente separado con tiempos de entrega altos "
-                "y alto % de demora (los vendedores \"rezagados\", candidatos a intervención "
-                "prioritaria) y otro(s) con buen desempeño en ambas variables."
+                "Se distingue un grupo chico de vendedores que tardan mucho más en entregar, se "
+                "demoran más seguido y reciben peores calificaciones: los llamamos \"rezagados\". "
+                "Los otros grupos tienen buen desempeño y se diferencian sobre todo por su tamaño: "
+                "uno reúne a muchos vendedores chicos y rápidos, y el otro, a vendedores con mucho "
+                "volumen de ventas."
             )
             oportunidad_box(
-                "El grupo de vendedores \"rezagados\" es la lista de contactos prioritaria para un "
-                "programa de acompañamiento logístico: son pocos vendedores, pero concentran una "
-                "parte desproporcionada del riesgo de mala experiencia de compra."
+                "El grupo de vendedores \"rezagados\" es por donde empezar un programa de ayuda con "
+                "la logística: son relativamente pocos, y es el grupo donde los clientes tienen la "
+                "peor experiencia."
             )
 
 # ============================================================
-# TAB 7 — Conclusiones y próximos pasos
+# TAB 8 — Conclusiones y próximos pasos
 # ============================================================
-with tabs[6]:
+with tabs[7]:
 
     st.markdown("#### Hallazgos principales")
     col1, col2 = st.columns(2)
     with col1:
-        insight_box(
-            "**El negocio está concentrado.** Un puñado de categorías explica la mayor parte de "
-            "la facturación, y las categorías de alto volumen no son las mismas que las de precio "
-            "alto, son dos palancas distintas para crecer."
+        st.markdown(
+            "**Unas pocas categorías mueven buena parte de la plata.** Las 10 categorías que más "
+            "venden juntan alrededor del 60% de la facturación. Lo que más se vende son productos "
+            "de precio medio."
         )
-        insight_box(
-            "**La logística importa más que el precio.** De todas las variables que miramos, "
-            "cumplir con la fecha de entrega prometida es la que más se relaciona con la "
-            "calificación que deja el cliente, más que el precio o el tamaño del producto."
+        st.markdown(
+            "**Recibir a tiempo importa más que el precio.** De todo lo que medimos, lo que más se "
+            "relaciona con la calificación del cliente es cuánto tarda el pedido y si llega "
+            "después de la fecha prometida. El precio casi no tiene que ver."
         )
-        insight_box(
-            "**La geografía explica buena parte de la demora.** Los clientes se concentran en "
-            "el eje Sudeste-Sur, la región mejor servida; a mayor distancia cliente-vendedor, más "
-            "riesgo de demora."
+        st.markdown(
+            "**La distancia explica buena parte de las demoras.** La mayoría de los clientes y de "
+            "los vendedores está en el Sudeste y el Sur. Cuanto más lejos está el cliente del "
+            "vendedor, más tarda el pedido y más probable es que se demore."
         )
     with col2:
-        insight_box(
-            "**Se puede anticipar una mala reseña antes de que el pedido llegue.** El modelo "
-            "predictivo identifica, con datos disponibles desde el momento de la compra, qué "
-            "pedidos tienen más riesgo de terminar en una reseña negativa, sin necesidad de "
-            "esperar a que el envío se demore de verdad."
+        st.markdown(
+            "**Se puede anticipar, en parte, una mala reseña.** Con lo que se sabe al momento de la "
+            "compra, el modelo señala qué pedidos tienen más riesgo de terminar mal, sin esperar a "
+            "que el envío se demore. No es infalible, pero alcanza para decidir a qué pedidos "
+            "prestarles más atención."
         )
-        insight_box(
-            "**No todos los vendedores son iguales.** El clustering separa a un grupo chico de "
-            "vendedores \"rezagados\" (tiempos de entrega altos y muchas demoras) del resto, que en "
-            "promedio funciona bien. Ese grupo chico concentra buena parte del riesgo."
+        st.markdown(
+            "**No todos los vendedores son iguales.** Al agruparlos aparece un grupo chico de "
+            "vendedores \"rezagados\", que tardan mucho más, se demoran más seguido y reciben "
+            "peores calificaciones. El resto, en general, funciona bien."
         )
-        insight_box(
-            "**Las propias palabras de los clientes confirman los números.** Las reseñas "
-            "negativas están dominadas por quejas de plazo y entrega; las positivas, por elogios al "
-            "cumplimiento."
+        st.markdown(
+            "**Los comentarios de los clientes confirman los números.** En las reseñas malas se "
+            "repiten quejas sobre pedidos que no llegaron o llegaron mal; en las buenas, elogios a "
+            "la rapidez de la entrega. Además, un modelo simple entrenado con las reseñas de Olist "
+            "entiende esos comentarios mejor que un modelo de inteligencia artificial genérico."
         )
 
     st.markdown("#### Oportunidades de negocio")
-    oportunidad_box(
-        "Negociar mejores condiciones con los vendedores de las categorías top de facturación "
-        "rinde más que un esfuerzo genérico parejo sobre todo el catálogo."
-    )
-    oportunidad_box(
-        "Priorizar la revisión logística por categoría y por región (empezando por las de mayor "
-        "% de demora) concentra el esfuerzo donde el impacto en satisfacción es mayor."
-    )
-    oportunidad_box(
-        "Usar el modelo de reseña como alerta temprana: contactar proactivamente a los pedidos de "
-        "mayor riesgo antes de que lleguen, en vez de reaccionar después de una mala calificación."
-    )
-    oportunidad_box(
-        "Armar un programa de acompañamiento para el grupo de vendedores \"rezagados\" detectado "
-        "por el clustering."
+    st.markdown(
+        "1. Ofrecer mejores condiciones a los vendedores de las categorías que más facturan: "
+        "rinde más que repartir el mismo esfuerzo entre todo el catálogo.\n"
+        "2. Mejorar los envíos empezando por las categorías y las regiones con más demoras, que "
+        "es donde una mejora se va a notar más en la satisfacción.\n"
+        "3. Usar el modelo de reseña como alerta temprana: contactar a los clientes de los "
+        "pedidos con más riesgo antes de que les lleguen, en lugar de reaccionar después de una "
+        "mala calificación.\n"
+        "4. Armar un programa de ayuda con la logística para el grupo de vendedores "
+        "\"rezagados\".\n"
+        "5. Revisar automáticamente los comentarios que suenan negativos aunque tengan buena "
+        "calificación, para detectar quejas que las estrellas no muestran."
     )
 
 st.caption(
