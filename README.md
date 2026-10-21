@@ -27,7 +27,7 @@ Olist_Analisis/
 │   ├── 06_visualizaciones_exploratorias.ipynb  # Gráficos exploratorios
 │   ├── 07_analisis_exhaustivo_logistica.ipynb  # Logística, precio y vendedores
 │   ├── 08_mapa_geografico.ipynb                # Mapas (Plotly + Folium) y resumen por estado
-│   ├── 09_nlp_sobre_las_resenas.ipynb          # NLP sobre reseñas en portugués
+│   ├── 09_nlp_sobre_las_resenas.ipynb          # NLP: nubes, sentimiento (transformer) y clasificador TF-IDF
 │   ├── 10_contraste_de_hipotesis.ipynb         # Tests estadísticos + conclusiones del EDA
 │   └── 11_modelado.ipynb                       # Clasificación de reseña (LightGBM) + segmentación (K-Means)
 ├── app.py                                  # Dashboard en Streamlit (lee modelos_output/)
@@ -41,6 +41,7 @@ Olist_Analisis/
 ├── Informe_Olist.docx                      # Informe funcional final
 ├── Presentacion_Olist.pptx                 # Presentación final
 ├── requirements.txt
+├── requirements-nlp.txt                    # Opcional: torch + transformers (solo para recalcular el sentimiento)
 └── .gitignore
 ```
 
@@ -79,6 +80,11 @@ data/olist_dataset_unificado.csv  (nb 02)
         → data/pipeline/02_df_features.csv  (nb 04)
             → EDA (nb 05–10) y modelado (nb 11)
 ```
+
+El **notebook 09** usa un transformer de sentimiento (`tabularisai/multilingual-sentiment-analysis`)
+cuyo resultado ya está guardado en `data/pipeline/03_df_sentimiento.csv`: si el archivo existe, el
+notebook lo reutiliza y **no hace falta instalar `requirements-nlp.txt`**. Solo para recalcularlo
+(~15 min en CPU) hay que instalar ese archivo y poner `FORZAR_SCORING = True` en el notebook.
 
 El **notebook 11** entrena los dos modelos y guarda sus resultados en `modelos_output/`, incluyendo el
 modelo serializado (`modelo_final.joblib`) y el catálogo de vendedores (`catalogo_vendedores.csv`), de

@@ -11,10 +11,11 @@
 # 2. Este stack se usa SOLO para la capa descriptiva del notebook 09.
 #    Prohibido alimentar el clasificador de nb11 con el sentimiento
 #    (garantía anti-fuga de información: el texto es post-compra).
-# 3. PyTorch se instala CPU-only desde el índice oficial:
-#       pip install torch --index-url https://download.pytorch.org/whl/cpu
-#    antes de instalar el resto.
+# 3. PyTorch se instala CPU-only desde el índice oficial de PyTorch.
+#    El índice extra permite resolver también las demás dependencias desde PyPI.
 # ============================================================
+
+--extra-index-url https://download.pytorch.org/whl/cpu
 
 torch==2.14.1+cpu          # CPU-only; ver nota 3 (instalar desde el índice PyTorch)
 transformers==5.3.0        # pipeline de text-classification

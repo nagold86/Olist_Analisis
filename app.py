@@ -725,6 +725,82 @@ with tabs[1]:
         "post-compra y usarla sería fuga de información)."
     )
 
+    st.markdown("##### De qué hablan: nubes de palabras")
+    # Una fila por reseña: los pedidos con varios ítems repiten la misma reseña en el dataset unificado
+    resenas_unicas = df.drop_duplicates(["order_id", "review_comment_message"])
+    con_comentario = (
+        resenas_unicas["review_comment_message"].notna()
+        & (resenas_unicas["review_comment_message"].str.strip() != "")
+    )
+    try:
+        import re
+        import unicodedata
+        from collections import Counter
+
+        from wordcloud import WordCloud
+
+        def _limpiar_texto(texto):
+            texto = str(texto).lower()
+            texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("utf-8")
+            texto = re.sub(r"[^a-z\s]", " ", texto)
+            return re.sub(r"\s+", " ", texto).strip()
+
+        STOPWORDS_PT = set((
+            "de a o que e do da em um para com nao uma os no se na por mais as dos como mas "
+            "ao ele das a sua ou quando muito nos ja eu tambem so pelo pelas pela ate isso "
+            "ela entre depois sem mesmo aos seus quem nas me esse eles voce essa num nem "
+            "suas meu as minha numa pelos elas qual sera nos tenho lhe deles essas esses "
+            "pelas este fosse dela tu te voces vos lhes meus minhas teu tua teus tuas "
+            "nosso nossa nossos nossas dele produto pedido"
+        ).split())
+
+        def _armar_texto(serie):
+            palabras = " ".join(serie.apply(_limpiar_texto)).split()
+            return " ".join(p for p in palabras if p not in STOPWORDS_PT and len(p) > 2)
+
+        texto_neg = _armar_texto(resenas_unicas.loc[con_comentario & (df["review_score"] <= 2), "review_comment_message"])
+        texto_pos = _armar_texto(resenas_unicas.loc[con_comentario & (df["review_score"] >= 4), "review_comment_message"])
+
+        col7, col8 = st.columns(2)
+        with col7:
+            if texto_neg.strip():
+                nube_neg = WordCloud(
+                    width=700, height=420, background_color=BG_PAGE, colormap="Reds",
+                    max_words=60, collocations=False,
+                ).generate(texto_neg)
+                import io as _io
+                buf = _io.BytesIO()
+                nube_neg.to_image().save(buf, format="PNG")
+                imagen_card(
+                    base64.b64encode(buf.getvalue()).decode("utf-8"),
+                    "Reseñas negativas (1-2 estrellas)",
+                )
+        with col8:
+            if texto_pos.strip():
+                nube_pos = WordCloud(
+                    width=700, height=420, background_color=BG_PAGE, colormap="Blues",
+                    max_words=60, collocations=False,
+                ).generate(texto_pos)
+                buf2 = _io.BytesIO()
+                nube_pos.to_image().save(buf2, format="PNG")
+                imagen_card(
+                    base64.b64encode(buf2.getvalue()).decode("utf-8"),
+                    "Reseñas positivas (4-5 estrellas)",
+                )
+        insight_box(
+            "En las reseñas negativas predominan palabras de queja sobre entrega y plazo "
+            "(\"prazo\", \"atraso\", \"chegou\"), mientras que en las positivas predominan elogios y "
+            "menciones al cumplimiento del plazo. La misma conclusión que ya vimos con los "
+            "números, ahora confirmada desde la expresión de los propios clientes."
+        )
+    except Exception:
+        st.info(
+            "No se pudo generar la nube de palabras en este entorno (falta la librería `wordcloud` "
+            "o no hay reseñas con comentario de texto en este dataset)."
+        )
+
+    st.markdown("##### Cómo se sienten: sentimiento con un modelo transformer")
+
     RUTA_SENTIMIENTO = Path("data/pipeline/03_df_sentimiento.csv")
     ORDEN_SENT = ["Very Negative", "Negative", "Neutral", "Positive", "Very Positive"]
     TRAD_SENT = {
@@ -742,6 +818,8 @@ with tabs[1]:
         )
     else:
         sent = pd.read_csv(RUTA_SENTIMIENTO)
+        # Defensa ante un artefacto viejo con reseñas repetidas (una fila por ítem)
+        sent = sent.drop_duplicates(["order_id", "review_comment_message"]).reset_index(drop=True)
         sent["sentimiento_es"] = sent["sentimiento"].map(TRAD_SENT)
         es_neg = sent["sentimiento"].isin(["Very Negative", "Negative"])
         es_pos = sent["sentimiento"].isin(["Positive", "Very Positive"])
@@ -765,12 +843,12 @@ with tabs[1]:
         # --- KPIs de la señal oculta (texto vs estrellas) ---
         k1, k2, k3 = st.columns(3)
         kpi_card(k1, f"{int(((sent['review_score'] >= 4) & es_neg).sum()):,}",
-                 "4-5★ con texto NEGATIVO (insatisfechos ocultos)")
+                 "4-5★ con texto negativo (candidatas a revisar)")
         kpi_card(k2, f"{int(((sent['review_score'] <= 2) & es_pos).sum()):,}",
-                 "1-2★ con texto POSITIVO (queja cordial)")
+                 "1-2★ con texto positivo (candidatas a revisar)")
         nclaro = int((es_neg | es_pos).sum())
         coher = float((((es_pos) & (sent["review_score"] >= 4)) | ((es_neg) & (sent["review_score"] <= 2))).sum() / nclaro)
-        kpi_card(k3, f"{coher * 100:.1f}%", "Coherencia texto↔estrellas (polo claro)")
+        kpi_card(k3, f"{coher * 100:.1f}%", "Coincidencia texto↔estrellas (polo claro)")
 
         # --- Heatmap sentimiento x estrellas (% por fila) ---
         piv = pd.crosstab(sent["sentimiento_es"], sent["review_score"]).reindex(ETIQUETAS_SENT)
@@ -783,10 +861,12 @@ with tabs[1]:
         chart_card(fig_heat, "¿El texto coincide con las estrellas? (% dentro de cada sentimiento)", height=360)
 
         insight_box(
-            f"El {coher * 100:.0f}% de las reseñas con un polo claro coincide con su calificación, lo que "
-            "valida el modelo. El dato accionable son las **discrepancias**: miles de clientes que ponen "
-            "4-5★ y aun así se quejan (mayormente por la **entrega**), y otros que ponen 1-2★ con texto "
-            "cordial. La estrella es un piso; el texto revela la fricción real."
+            f"El {coher * 100:.0f}% de las reseñas con un polo claro coincide con su calificación: el "
+            "modelo capta bien la **dirección** del sentimiento. Las **discrepancias** (texto que contradice "
+            "a las estrellas) mezclan casos reales con **errores del modelo**, por eso se presentan como "
+            "candidatas a revisar y no como un conteo de clientes insatisfechos. En el notebook 09 un "
+            "clasificador TF-IDF entrenado con nuestras propias estrellas sirve de referencia para "
+            "medir al transformer."
         )
 
         # --- Sentimiento negativo por categoría ---
@@ -854,9 +934,9 @@ with tabs[1]:
                 st.caption(f"Mostrando las {len(mostrar)} de mayor confianza de {len(vista):,}.")
 
         oportunidad_box(
-            "Detectar los 'insatisfechos ocultos' (4-5★ con texto negativo) permite recuperar "
-            "clientes que el score numérico marca como perdidos: una acción de postventa o mejora "
-            "logística sobre ellos ataca la causa real de la queja (casi siempre la entrega)."
+            "Un filtro automático de reseñas con texto negativo pero buena calificación permitiría "
+            "detectar quejas que el puntaje no muestra. Para usarlo en postventa habría que validar "
+            "primero una muestra a mano, porque parte de esas discrepancias son errores del modelo."
         )
 
 # ============================================================
